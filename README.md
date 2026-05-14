@@ -15,8 +15,12 @@ taskbar notification area.
 
 ## Phase 2
 
-Automation will build on the same power-plan service and add demand-aware scaling
-between efficient and high-performance plans.
+- Enable or disable automation from the tray menu
+- Choose the scale-down target power plan
+- Switch to the target plan when Windows idle time exceeds a configured number of minutes
+- Switch to the target plan when a selected running process stays below a configured CPU percentage for a configured number of minutes
+- Pick the watched process from the current process list, including long-running tools such as `cTrader.exe` or `cAlgo.exe`
+- Persist automation settings in `%APPDATA%\PowerPlanPilot\automation.json`
 
 ## Build
 
