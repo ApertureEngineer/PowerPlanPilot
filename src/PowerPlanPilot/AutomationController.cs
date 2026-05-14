@@ -112,6 +112,13 @@ internal sealed class AutomationController : IDisposable
         }
 
         var usage = _processCpuSampler.GetCpuUsagePercent(Settings.ProcessName);
+        if (!usage.HasRunningProcess)
+        {
+            _lowUsageSince = null;
+            SetStatus($"Waiting for {Settings.ProcessName} to start");
+            return;
+        }
+
         if (!usage.HasBaseline)
         {
             SetStatus($"Collecting CPU baseline for {Settings.ProcessName}");
