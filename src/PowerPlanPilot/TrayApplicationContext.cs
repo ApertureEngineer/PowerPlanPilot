@@ -6,6 +6,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _notifyIcon;
     private readonly Icon _trayIcon;
+    private readonly Font _headerFont;
 
     public TrayApplicationContext(PowerPlanService powerPlanService)
     {
@@ -13,6 +14,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _trayIcon = TrayIconFactory.CreateIcon();
 
         ConfigureMenu();
+        _headerFont = new Font(_menu.Font, FontStyle.Bold);
         _menu.Opening += (_, _) => RebuildMenu();
 
         _notifyIcon = new NotifyIcon
@@ -36,6 +38,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _notifyIcon.Dispose();
             _trayIcon.Dispose();
             _menu.Dispose();
+            _headerFont.Dispose();
         }
 
         base.Dispose(disposing);
@@ -144,7 +147,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var header = new ToolStripLabel(text)
         {
             Enabled = false,
-            Font = new Font(_menu.Font, FontStyle.Bold),
+            Font = _headerFont,
             ForeColor = Color.FromArgb(83, 95, 110),
             Padding = new Padding(2, 4, 8, 4),
             TextAlign = ContentAlignment.MiddleLeft,
