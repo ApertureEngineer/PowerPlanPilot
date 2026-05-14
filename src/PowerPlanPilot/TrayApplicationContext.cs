@@ -1,7 +1,12 @@
+using System.Diagnostics;
+using Microsoft.VisualBasic;
+
 namespace PowerPlanPilot;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
+    private readonly AutomationController _automationController;
+    private readonly AutomationSettingsStore _settingsStore = new();
     private readonly PowerPlanService _powerPlanService;
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _notifyIcon;
@@ -11,6 +16,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     public TrayApplicationContext(PowerPlanService powerPlanService)
     {
         _powerPlanService = powerPlanService;
+        _automationController = new AutomationController(_powerPlanService, _settingsStore.Load());
+        _automationController.StatusChanged += OnAutomationStatusChanged;
         _trayIcon = TrayIconFactory.CreateIcon();
 
         ConfigureMenu();
@@ -27,6 +34,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _notifyIcon.MouseUp += OnTrayMouseUp;
         RebuildMenu();
+        _automationController.Start();
     }
 
     protected override void Dispose(bool disposing)
@@ -34,6 +42,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (disposing)
         {
             _notifyIcon.MouseUp -= OnTrayMouseUp;
+            _automationController.StatusChanged -= OnAutomationStatusChanged;
+            _automationController.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _trayIcon.Dispose();
@@ -71,6 +81,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             AddDisabledItem("Could not load Windows power plans");
             AddDisabledItem(ex.Message);
             _menu.Items.Add(new ToolStripSeparator());
+            AddAutomationItems([]);
+            _menu.Items.Add(new ToolStripSeparator());
             AddUtilityItems();
             return;
         }
@@ -97,6 +109,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             }
         }
 
+        _menu.Items.Add(new ToolStripSeparator());
+        AddAutomationItems(plans);
         _menu.Items.Add(new ToolStripSeparator());
         AddUtilityItems();
     }
@@ -125,6 +139,119 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             RebuildMenu();
         }
+    }
+
+    private void AddAutomationItems(IReadOnlyList<PowerPlan> plans)
+    {
+        AddHeaderItem("Automation");
+
+        var settings = _automationController.Settings;
+        var enabledItem = new ToolStripMenuItem("Enable automation", null, (_, _) => UpdateAutomationSetting(s => s.IsEnabled = !s.IsEnabled))
+        {
+            Checked = settings.IsEnabled,
+            Padding = new Padding(2, 3, 8, 3),
+        };
+        _menu.Items.Add(enabledItem);
+
+        AddDisabledItem(_automationController.StatusText);
+
+        var targetMenu = new ToolStripMenuItem("Scale-down target plan")
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        };
+
+        if (plans.Count == 0)
+        {
+            targetMenu.DropDownItems.Add(new ToolStripMenuItem("No plans available") { Enabled = false });
+        }
+        else
+        {
+            foreach (var plan in plans)
+            {
+                var item = new ToolStripMenuItem(plan.Name, null, (_, _) => UpdateAutomationSetting(s => s.TargetPowerPlanId = plan.Id))
+                {
+                    Checked = settings.TargetPowerPlanId == plan.Id,
+                };
+                targetMenu.DropDownItems.Add(item);
+            }
+        }
+        _menu.Items.Add(targetMenu);
+
+        var modeMenu = new ToolStripMenuItem("Switch condition")
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        };
+        modeMenu.DropDownItems.Add(new ToolStripMenuItem("Idle time", null, (_, _) => UpdateAutomationSetting(s => s.Mode = AutomationMode.IdleTime))
+        {
+            Checked = settings.Mode == AutomationMode.IdleTime,
+        });
+        modeMenu.DropDownItems.Add(new ToolStripMenuItem("Process CPU usage", null, (_, _) => UpdateAutomationSetting(s => s.Mode = AutomationMode.ProcessCpu))
+        {
+            Checked = settings.Mode == AutomationMode.ProcessCpu,
+        });
+        _menu.Items.Add(modeMenu);
+
+        var idleItem = new ToolStripMenuItem($"Idle threshold: {settings.IdleMinutes} minutes", null, (_, _) => PromptForInteger(
+            "Idle threshold",
+            "Switch to the scale-down plan after this many idle minutes:",
+            settings.IdleMinutes,
+            1,
+            1440,
+            value => settings.IdleMinutes = value))
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        };
+        _menu.Items.Add(idleItem);
+
+        AddProcessItems(settings);
+    }
+
+    private void AddProcessItems(AutomationSettings settings)
+    {
+        var processMenu = new ToolStripMenuItem($"Process: {settings.ProcessName ?? "not selected"}")
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        };
+
+        var processNames = GetOpenProcessNames();
+        if (processNames.Count == 0)
+        {
+            processMenu.DropDownItems.Add(new ToolStripMenuItem("No processes available") { Enabled = false });
+        }
+        else
+        {
+            foreach (var processName in processNames)
+            {
+                processMenu.DropDownItems.Add(new ToolStripMenuItem(processName, null, (_, _) => UpdateAutomationSetting(s => s.ProcessName = processName))
+                {
+                    Checked = string.Equals(settings.ProcessName, processName, StringComparison.OrdinalIgnoreCase),
+                });
+            }
+        }
+
+        _menu.Items.Add(processMenu);
+
+        _menu.Items.Add(new ToolStripMenuItem($"CPU threshold: {settings.ProcessCpuThresholdPercent:F1}%", null, (_, _) => PromptForDouble(
+            "Process CPU threshold",
+            "Switch when the selected process stays under this CPU percentage:",
+            settings.ProcessCpuThresholdPercent,
+            0,
+            100,
+            value => settings.ProcessCpuThresholdPercent = value))
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        });
+
+        _menu.Items.Add(new ToolStripMenuItem($"Low-usage duration: {settings.ProcessLowUsageMinutes} minutes", null, (_, _) => PromptForInteger(
+            "Low-usage duration",
+            "Switch after the selected process stays below the CPU threshold for this many minutes:",
+            settings.ProcessLowUsageMinutes,
+            1,
+            1440,
+            value => settings.ProcessLowUsageMinutes = value))
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        });
     }
 
     private void AddUtilityItems()
@@ -187,10 +314,86 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _menu.ShowImageMargin = false;
     }
 
+    private void UpdateAutomationSetting(Action<AutomationSettings> update)
+    {
+        update(_automationController.Settings);
+        _settingsStore.Save(_automationController.Settings);
+        _automationController.ApplySettings();
+        RebuildMenu();
+    }
+
+    private void PromptForInteger(string title, string prompt, int currentValue, int minimum, int maximum, Action<int> apply)
+    {
+        var input = Interaction.InputBox(prompt, title, currentValue.ToString());
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return;
+        }
+
+        if (!int.TryParse(input, out var value) || value < minimum || value > maximum)
+        {
+            MessageBox.Show($"Enter a whole number from {minimum} to {maximum}.", "PowerPlanPilot", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        UpdateAutomationSetting(_ => apply(value));
+    }
+
+    private void PromptForDouble(string title, string prompt, double currentValue, double minimum, double maximum, Action<double> apply)
+    {
+        var input = Interaction.InputBox(prompt, title, currentValue.ToString("F1"));
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return;
+        }
+
+        if (!double.TryParse(input, out var value) || value < minimum || value > maximum)
+        {
+            MessageBox.Show($"Enter a number from {minimum:F0} to {maximum:F0}.", "PowerPlanPilot", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        UpdateAutomationSetting(_ => apply(value));
+    }
+
+    private void OnAutomationStatusChanged(object? sender, string status)
+    {
+        _notifyIcon.Text = status.Length > 63 ? status[..63] : status;
+
+        if (status.StartsWith("Switched to ", StringComparison.Ordinal))
+        {
+            ShowStatus(status);
+            RebuildMenu();
+        }
+    }
+
     private void ShowStatus(string message)
     {
         _notifyIcon.BalloonTipTitle = "PowerPlanPilot";
         _notifyIcon.BalloonTipText = message;
         _notifyIcon.ShowBalloonTip(1200);
+    }
+
+    private static IReadOnlyList<string> GetOpenProcessNames()
+    {
+        return Process.GetProcesses()
+            .Select(process =>
+            {
+                using (process)
+                {
+                    try
+                    {
+                        return process.ProcessName + ".exe";
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        return null;
+                    }
+                }
+            })
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray()!;
     }
 }
