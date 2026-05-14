@@ -48,7 +48,7 @@ internal sealed class ProcessCpuSampler
         return new ProcessCpuUsage(
             Math.Clamp(cpuPercent, 0, 100),
             currentSamples.Count > 0,
-            !currentSamples.Any() || matchedPreviousSample);
+            currentSamples.Count > 0 && matchedPreviousSample);
     }
 
     public void Reset() => _previousSamples.Clear();
