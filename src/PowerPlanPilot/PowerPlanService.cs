@@ -52,13 +52,13 @@ internal sealed partial class PowerPlanService
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
         {
-            FileName = "powercfg",
-            Arguments = arguments,
+            FileName = "cmd.exe",
+            Arguments = $"/d /c \"chcp 65001>nul & powercfg {arguments}\"",
             CreateNoWindow = true,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
-            StandardErrorEncoding = Encoding.Default,
-            StandardOutputEncoding = Encoding.Default,
+            StandardErrorEncoding = Encoding.UTF8,
+            StandardOutputEncoding = Encoding.UTF8,
             UseShellExecute = false,
         };
 
