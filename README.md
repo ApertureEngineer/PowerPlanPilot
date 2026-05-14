@@ -1,26 +1,48 @@
 # PowerPlanPilot
 
-Smart control of power plans for Windows systems.
+PowerPlanPilot is a lightweight Windows tray application for quick power-plan
+switching and simple automatic scale-down rules.
 
-PowerPlanPilot starts as a Windows tray app. It loads the power plans currently
-registered in Windows and lets you switch between them with one click from the
-taskbar notification area.
+## Current status
 
-## Phase 1
+- Runs as a Windows notification-area app with a compact, refreshed tray menu.
+- Reads the current Windows power plans with `powercfg /L` every time the menu is
+  opened or **Refresh** is clicked, so plans created outside the app appear
+  without recompiling.
+- Shows the active Windows power plan and switches plans with `powercfg /S <guid>`.
+- Supports Unicode power-plan names, including German umlauts such as `Ä`, `Ö`,
+  `Ü`, `ä`, `ö`, `ü`, `ß`, and other special characters, by forcing `powercfg`
+  output through UTF-8.
+- Saves automation settings in `%APPDATA%\PowerPlanPilot\automation.json`.
 
-- Load Windows power plans through `powercfg /L`
-- Highlight the active plan
-- Switch plans through `powercfg /S <guid>`
-- Open a small tray menu next to the Windows clock
+## What is saved?
 
-## Phase 2
+PowerPlanPilot does **not** start from scratch after every compile or restart:
 
-- Enable or disable automation from the tray menu
-- Choose the scale-down target power plan
-- Switch to the target plan when Windows idle time exceeds a configured number of minutes
-- Switch to the target plan when a selected running process stays below a configured CPU percentage for a configured number of minutes
-- Pick the watched process from the current process list, including long-running tools such as `cTrader.exe` or `cAlgo.exe`
-- Persist automation settings in `%APPDATA%\PowerPlanPilot\automation.json`
+- The active power plan itself is stored by Windows. If PowerPlanPilot switches
+  to another plan, Windows keeps that active plan until something changes it.
+- PowerPlanPilot automation settings are saved as JSON under the current Windows
+  user profile at `%APPDATA%\PowerPlanPilot\automation.json`.
+- The saved app settings include automation enabled/disabled state, selected
+  scale-down target plan GUID, switch condition, idle threshold, selected process,
+  CPU threshold, and low-usage duration.
+- Manually added, renamed, or removed power plans are not copied into the app;
+  they remain Windows power plans and are re-read from `powercfg` on menu open or
+  refresh.
+
+If the app cannot read the settings file, it falls back to safe defaults and will
+create a fresh settings file on the next saved change.
+
+## Automation features
+
+- Enable or disable automation from the tray menu.
+- Choose a scale-down target power plan.
+- Switch to the target plan after Windows idle time exceeds the configured number
+  of minutes.
+- Switch to the target plan when a selected running process stays below a
+  configured CPU percentage for a configured number of minutes.
+- Pick the watched process from the current process list, including long-running
+  tools such as `cTrader.exe` or `cAlgo.exe`.
 
 ## Build
 
@@ -33,3 +55,13 @@ dotnet build
 ```powershell
 dotnet run --project .\src\PowerPlanPilot\PowerPlanPilot.csproj
 ```
+
+## Notes for validation
+
+- Add or rename a Windows power plan, then open the tray menu or click
+  **Refresh**. The plan should appear with its current name.
+- Test names with umlauts and special characters, for example
+  `Trading ÄÖÜ äöü ß + # (Test)`, and confirm the tray menu displays them
+  correctly.
+- Change automation settings, close the app, rebuild or restart it, and confirm
+  the saved values are restored from `%APPDATA%\PowerPlanPilot\automation.json`.
