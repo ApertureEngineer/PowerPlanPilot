@@ -12,23 +12,10 @@ internal static class TrayIconFactory
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.Clear(Color.Transparent);
 
-        using var backgroundBrush = new LinearGradientBrush(
-            new Rectangle(0, 0, size, size),
-            Color.FromArgb(24, 119, 242),
-            Color.FromArgb(0, 201, 167),
-            LinearGradientMode.ForwardDiagonal);
-
-        var inset = Scale(size, 6);
-        using var backgroundPath = RoundedRectangle(
-            new Rectangle(inset, inset, size - (inset * 2), size - (inset * 2)),
-            Scale(size, 14));
-        graphics.FillPath(backgroundBrush, backgroundPath);
-
-        using var highlightPen = new Pen(Color.FromArgb(115, Color.White), Scale(size, 2));
-        graphics.DrawPath(highlightPen, backgroundPath);
-
+        DrawBackground(graphics, size);
+        DrawMeter(graphics, size);
         DrawBolt(graphics, size);
-        DrawGaugeArc(graphics, size);
+        DrawPilotDot(graphics, size);
 
         var handle = bitmap.GetHicon();
         try
@@ -42,45 +29,83 @@ internal static class TrayIconFactory
         }
     }
 
+    private static void DrawBackground(Graphics graphics, int size)
+    {
+        var inset = Scale(size, 5);
+        var bounds = new Rectangle(inset, inset, size - (inset * 2), size - (inset * 2));
+
+        using var backgroundBrush = new LinearGradientBrush(
+            bounds,
+            Color.FromArgb(16, 94, 210),
+            Color.FromArgb(0, 214, 170),
+            LinearGradientMode.ForwardDiagonal);
+
+        using var backgroundPath = RoundedRectangle(bounds, Scale(size, 15));
+        graphics.FillPath(backgroundBrush, backgroundPath);
+
+        using var glowBrush = new SolidBrush(Color.FromArgb(70, Color.White));
+        graphics.FillEllipse(glowBrush, new Rectangle(Scale(size, 10), Scale(size, 8), Scale(size, 30), Scale(size, 18)));
+
+        using var borderPen = new Pen(Color.FromArgb(150, Color.White), Math.Max(1, Scale(size, 1.6f)));
+        graphics.DrawPath(borderPen, backgroundPath);
+    }
+
+    private static void DrawMeter(Graphics graphics, int size)
+    {
+        var arcBounds = new Rectangle(Scale(size, 13), Scale(size, 15), Scale(size, 38), Scale(size, 38));
+        using var shadowPen = new Pen(Color.FromArgb(80, 0, 38, 70), Scale(size, 5))
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+        };
+        using var arcPen = new Pen(Color.FromArgb(225, Color.White), Scale(size, 3.5f))
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+        };
+
+        graphics.DrawArc(shadowPen, arcBounds, 205, 130);
+        graphics.DrawArc(arcPen, arcBounds, 205, 130);
+    }
+
     private static void DrawBolt(Graphics graphics, int size)
     {
         PointF[] bolt =
         [
-            new(Scale(size, 35), Scale(size, 12)),
-            new(Scale(size, 19), Scale(size, 35)),
-            new(Scale(size, 31), Scale(size, 35)),
-            new(Scale(size, 26), Scale(size, 52)),
-            new(Scale(size, 46), Scale(size, 27)),
+            new(Scale(size, 36), Scale(size, 12)),
+            new(Scale(size, 18), Scale(size, 36)),
+            new(Scale(size, 31), Scale(size, 36)),
+            new(Scale(size, 25), Scale(size, 53)),
+            new(Scale(size, 47), Scale(size, 26)),
             new(Scale(size, 34), Scale(size, 27)),
         ];
 
-        using var shadowBrush = new SolidBrush(Color.FromArgb(80, 0, 31, 57));
+        using var shadowBrush = new SolidBrush(Color.FromArgb(95, 0, 31, 57));
         using var shadowPath = new GraphicsPath();
         shadowPath.AddPolygon(bolt
-            .Select(point => new PointF(point.X + Scale(size, 1.5f), point.Y + Scale(size, 2f)))
+            .Select(point => new PointF(point.X + Scale(size, 1.4f), point.Y + Scale(size, 2f)))
             .ToArray());
         graphics.FillPath(shadowBrush, shadowPath);
 
         using var boltBrush = new LinearGradientBrush(
             new Rectangle(Scale(size, 17), Scale(size, 10), Scale(size, 32), Scale(size, 44)),
             Color.White,
-            Color.FromArgb(255, 221, 72),
+            Color.FromArgb(255, 216, 64),
             LinearGradientMode.Vertical);
         using var boltPath = new GraphicsPath();
         boltPath.AddPolygon(bolt);
         graphics.FillPath(boltBrush, boltPath);
+
+        using var edgePen = new Pen(Color.FromArgb(180, 255, 255, 255), Math.Max(1, Scale(size, 1)));
+        graphics.DrawPath(edgePen, boltPath);
     }
 
-    private static void DrawGaugeArc(Graphics graphics, int size)
+    private static void DrawPilotDot(Graphics graphics, int size)
     {
-        var arcBounds = new Rectangle(Scale(size, 15), Scale(size, 16), Scale(size, 34), Scale(size, 34));
-        using var arcPen = new Pen(Color.FromArgb(210, Color.White), Scale(size, 3))
-        {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round,
-        };
-
-        graphics.DrawArc(arcPen, arcBounds, 205, 130);
+        using var dotBrush = new SolidBrush(Color.FromArgb(255, 31, 43, 55));
+        using var dotHighlightBrush = new SolidBrush(Color.FromArgb(245, 255, 255, 255));
+        graphics.FillEllipse(dotBrush, new Rectangle(Scale(size, 45), Scale(size, 44), Scale(size, 8), Scale(size, 8)));
+        graphics.FillEllipse(dotHighlightBrush, new Rectangle(Scale(size, 47), Scale(size, 46), Scale(size, 3), Scale(size, 3)));
     }
 
     private static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
