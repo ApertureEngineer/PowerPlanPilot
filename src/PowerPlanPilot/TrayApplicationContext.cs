@@ -1,27 +1,53 @@
 using System.Diagnostics;
-using Microsoft.VisualBasic;
 
 namespace PowerPlanPilot;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
+    private static readonly Padding MenuItemPadding = new(2, 3, 8, 3);
+    private static readonly Padding HeaderPadding = new(2, 4, 8, 4);
+
     private readonly AutomationController _automationController;
+    private readonly AutomationMenuBuilder _automationMenuBuilder;
     private readonly AutomationSettingsStore _settingsStore = new();
     private readonly PowerPlanService _powerPlanService;
+    private readonly IProcessNameProvider _processNameProvider;
     private readonly ContextMenuStrip _menu = new();
     private readonly NotifyIcon _notifyIcon;
     private readonly Icon _trayIcon;
     private readonly Font _headerFont;
+    private readonly string? _settingsWarning;
 
     public TrayApplicationContext(PowerPlanService powerPlanService)
+        : this(powerPlanService, new SystemProcessService())
+    {
+    }
+
+    private TrayApplicationContext(PowerPlanService powerPlanService, IProcessNameProvider processNameProvider)
     {
         _powerPlanService = powerPlanService;
-        _automationController = new AutomationController(_powerPlanService, _settingsStore.Load());
+        _processNameProvider = processNameProvider;
+
+        var loadResult = _settingsStore.Load();
+        _settingsWarning = loadResult.WarningMessage;
+        _automationController = new AutomationController(_powerPlanService, loadResult.Settings);
         _automationController.StatusChanged += OnAutomationStatusChanged;
         _trayIcon = TrayIconFactory.CreateIcon();
 
         ConfigureMenu();
         _headerFont = new Font(_menu.Font, FontStyle.Bold);
+        _automationMenuBuilder = new AutomationMenuBuilder(
+            _menu,
+            _automationController,
+            _processNameProvider,
+            AddHeaderItem,
+            AddDisabledItem,
+            CreateMenuItem,
+            CreateCheckedMenuItem,
+            UpdateAutomationSetting,
+            PromptForInteger,
+            PromptForDouble,
+            _settingsWarning);
         _menu.Opening += (_, _) => RebuildMenu();
 
         _notifyIcon = new NotifyIcon
@@ -35,6 +61,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.MouseUp += OnTrayMouseUp;
         RebuildMenu();
         _automationController.Start();
+
+        if (!string.IsNullOrWhiteSpace(_settingsWarning))
+        {
+            ShowStatus(_settingsWarning);
+        }
     }
 
     protected override void Dispose(bool disposing)
@@ -80,9 +111,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             AddDisabledItem("Could not load Windows power plans");
             AddDisabledItem(ex.Message);
-            _menu.Items.Add(new ToolStripSeparator());
-            AddAutomationItems([]);
-            _menu.Items.Add(new ToolStripSeparator());
+            AddSeparator();
+            _automationMenuBuilder.AddAutomationItems([]);
+            AddSeparator();
             AddUtilityItems();
             return;
         }
@@ -95,23 +126,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             foreach (var plan in plans)
             {
-                var item = new ToolStripMenuItem(plan.Name)
-                {
-                    Checked = plan.IsActive,
-                    CheckOnClick = false,
-                    DisplayStyle = ToolStripItemDisplayStyle.Text,
-                    Padding = new Padding(2, 3, 8, 3),
-                    Tag = plan,
-                };
-
-                item.Click += OnPowerPlanClick;
-                _menu.Items.Add(item);
+                _menu.Items.Add(CreateCheckedMenuItem(plan.Name, plan.IsActive, OnPowerPlanClick, plan));
             }
         }
 
-        _menu.Items.Add(new ToolStripSeparator());
-        AddAutomationItems(plans);
-        _menu.Items.Add(new ToolStripSeparator());
+        AddSeparator();
+        _automationMenuBuilder.AddAutomationItems(plans);
+        AddSeparator();
         AddUtilityItems();
     }
 
@@ -141,153 +162,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
-    private void AddAutomationItems(IReadOnlyList<PowerPlan> plans)
-    {
-        AddHeaderItem("Automation");
-
-        var settings = _automationController.Settings;
-        var enabledItem = new ToolStripMenuItem("Enable automation", null, (_, _) => UpdateAutomationSetting(s => s.IsEnabled = !s.IsEnabled))
-        {
-            Checked = settings.IsEnabled,
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        _menu.Items.Add(enabledItem);
-
-        AddDisabledItem(_automationController.StatusText);
-
-        var targetMenu = new ToolStripMenuItem("Scale-down target plan")
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-
-        if (plans.Count == 0)
-        {
-            targetMenu.DropDownItems.Add(new ToolStripMenuItem("No plans available") { Enabled = false });
-        }
-        else
-        {
-            foreach (var plan in plans)
-            {
-                var item = new ToolStripMenuItem(plan.Name, null, (_, _) => UpdateAutomationSetting(s => s.TargetPowerPlanId = plan.Id))
-                {
-                    Checked = settings.TargetPowerPlanId == plan.Id,
-                };
-                targetMenu.DropDownItems.Add(item);
-            }
-        }
-        _menu.Items.Add(targetMenu);
-
-        var modeMenu = new ToolStripMenuItem("Switch condition")
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        modeMenu.DropDownItems.Add(new ToolStripMenuItem("Idle time", null, (_, _) => UpdateAutomationSetting(s => s.Mode = AutomationMode.IdleTime))
-        {
-            Checked = settings.Mode == AutomationMode.IdleTime,
-        });
-        modeMenu.DropDownItems.Add(new ToolStripMenuItem("Process CPU usage", null, (_, _) => UpdateAutomationSetting(s => s.Mode = AutomationMode.ProcessCpu))
-        {
-            Checked = settings.Mode == AutomationMode.ProcessCpu,
-        });
-        _menu.Items.Add(modeMenu);
-
-        var idleItem = new ToolStripMenuItem($"Idle threshold: {settings.IdleMinutes} minutes", null, (_, _) => PromptForInteger(
-            "Idle threshold",
-            "Switch to the scale-down plan after this many idle minutes:",
-            settings.IdleMinutes,
-            1,
-            1440,
-            value => settings.IdleMinutes = value))
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        _menu.Items.Add(idleItem);
-
-        AddProcessItems(settings);
-    }
-
-    private void AddProcessItems(AutomationSettings settings)
-    {
-        var processMenu = new ToolStripMenuItem($"Process: {settings.ProcessName ?? "not selected"}")
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-
-        var processNames = GetOpenProcessNames();
-        if (processNames.Count == 0)
-        {
-            processMenu.DropDownItems.Add(new ToolStripMenuItem("No processes available") { Enabled = false });
-        }
-        else
-        {
-            foreach (var processName in processNames)
-            {
-                processMenu.DropDownItems.Add(new ToolStripMenuItem(processName, null, (_, _) => UpdateAutomationSetting(s => s.ProcessName = processName))
-                {
-                    Checked = string.Equals(settings.ProcessName, processName, StringComparison.OrdinalIgnoreCase),
-                });
-            }
-        }
-
-        _menu.Items.Add(processMenu);
-
-        _menu.Items.Add(new ToolStripMenuItem($"CPU threshold: {settings.ProcessCpuThresholdPercent:F1}%", null, (_, _) => PromptForDouble(
-            "Process CPU threshold",
-            "Switch when the selected process stays under this CPU percentage:",
-            settings.ProcessCpuThresholdPercent,
-            0,
-            100,
-            value => settings.ProcessCpuThresholdPercent = value))
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        });
-
-        _menu.Items.Add(new ToolStripMenuItem($"Low-usage duration: {settings.ProcessLowUsageMinutes} minutes", null, (_, _) => PromptForInteger(
-            "Low-usage duration",
-            "Switch after the selected process stays below the CPU threshold for this many minutes:",
-            settings.ProcessLowUsageMinutes,
-            1,
-            1440,
-            value => settings.ProcessLowUsageMinutes = value))
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        });
-    }
-
     private void AddUtilityItems()
     {
         AddHeaderItem("Tools");
-
-        var refreshItem = new ToolStripMenuItem("Refresh", null, (_, _) => RebuildMenu())
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        _menu.Items.Add(refreshItem);
-
-        var powerOptionsItem = new ToolStripMenuItem("Windows power options", null, (_, _) => OpenWindowsPowerOptions())
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        _menu.Items.Add(powerOptionsItem);
-
-        var autostartItem = new ToolStripMenuItem("Start with Windows", null, (_, _) => ToggleAutostart())
-        {
-            Checked = AutostartManager.IsEnabled(),
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        _menu.Items.Add(autostartItem);
-
-        var infoItem = new ToolStripMenuItem("Info", null, (_, _) => ShowInfo())
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        _menu.Items.Add(infoItem);
-
-        var exitItem = new ToolStripMenuItem("Exit", null, (_, _) => ExitThread())
-        {
-            Padding = new Padding(2, 3, 8, 3),
-        };
-        _menu.Items.Add(exitItem);
+        AddPaddedItem(_menu.Items, CreateMenuItem("Refresh", (_, _) => RebuildMenu()));
+        AddPaddedItem(_menu.Items, CreateMenuItem("Windows power options", (_, _) => OpenWindowsPowerOptions()));
+        AddPaddedItem(_menu.Items, CreateCheckedMenuItem("Start with Windows", AutostartManager.IsEnabled(), (_, _) => ToggleAutostart()));
+        AddPaddedItem(_menu.Items, CreateMenuItem("Info", (_, _) => ShowInfo()));
+        AddPaddedItem(_menu.Items, CreateMenuItem("Exit", (_, _) => ExitThread()));
     }
 
     private void OpenWindowsPowerOptions()
@@ -350,22 +232,52 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Enabled = false,
             Font = _headerFont,
             ForeColor = Color.FromArgb(83, 95, 110),
-            Padding = new Padding(2, 4, 8, 4),
+            Padding = HeaderPadding,
             TextAlign = ContentAlignment.MiddleLeft,
         };
 
         _menu.Items.Add(header);
-        _menu.Items.Add(new ToolStripSeparator());
+        AddSeparator();
     }
 
     private void AddDisabledItem(string text)
     {
-        _menu.Items.Add(new ToolStripMenuItem(text)
-        {
-            Enabled = false,
-            Padding = new Padding(2, 3, 8, 3),
-        });
+        AddPaddedItem(_menu.Items, CreateMenuItem(text, enabled: false));
     }
+
+    private static ToolStripMenuItem CreateMenuItem(string text, EventHandler? onClick = null, object? tag = null, bool enabled = true)
+    {
+        var item = new ToolStripMenuItem(text)
+        {
+            DisplayStyle = ToolStripItemDisplayStyle.Text,
+            Enabled = enabled,
+            Padding = MenuItemPadding,
+            Tag = tag,
+        };
+
+        if (onClick is not null)
+        {
+            item.Click += onClick;
+        }
+
+        return item;
+    }
+
+    private static ToolStripMenuItem CreateCheckedMenuItem(string text, bool isChecked, EventHandler? onClick = null, object? tag = null)
+    {
+        var item = CreateMenuItem(text, onClick, tag);
+        item.Checked = isChecked;
+        item.CheckOnClick = false;
+        return item;
+    }
+
+    private static void AddPaddedItem(ToolStripItemCollection items, ToolStripMenuItem item)
+    {
+        item.Padding = MenuItemPadding;
+        items.Add(item);
+    }
+
+    private void AddSeparator() => _menu.Items.Add(new ToolStripSeparator());
 
     private void ClearMenuItems()
     {
@@ -398,36 +310,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void PromptForInteger(string title, string prompt, int currentValue, int minimum, int maximum, Action<int> apply)
     {
-        var input = Interaction.InputBox(prompt, title, currentValue.ToString());
-        if (string.IsNullOrWhiteSpace(input))
+        if (NumberInputDialog.TryGetInteger(title, prompt, currentValue, minimum, maximum, out var value))
         {
-            return;
+            UpdateAutomationSetting(_ => apply(value));
         }
-
-        if (!int.TryParse(input, out var value) || value < minimum || value > maximum)
-        {
-            MessageBox.Show($"Enter a whole number from {minimum} to {maximum}.", "PowerPlanPilot", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        UpdateAutomationSetting(_ => apply(value));
     }
 
     private void PromptForDouble(string title, string prompt, double currentValue, double minimum, double maximum, Action<double> apply)
     {
-        var input = Interaction.InputBox(prompt, title, currentValue.ToString("F1"));
-        if (string.IsNullOrWhiteSpace(input))
+        if (NumberInputDialog.TryGetDouble(title, prompt, currentValue, minimum, maximum, out var value))
         {
-            return;
+            UpdateAutomationSetting(_ => apply(value));
         }
-
-        if (!double.TryParse(input, out var value) || value < minimum || value > maximum)
-        {
-            MessageBox.Show($"Enter a number from {minimum:F0} to {maximum:F0}.", "PowerPlanPilot", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        UpdateAutomationSetting(_ => apply(value));
     }
 
     private void OnAutomationStatusChanged(object? sender, string status)
@@ -446,28 +340,5 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.BalloonTipTitle = "PowerPlanPilot";
         _notifyIcon.BalloonTipText = message;
         _notifyIcon.ShowBalloonTip(1200);
-    }
-
-    private static IReadOnlyList<string> GetOpenProcessNames()
-    {
-        return Process.GetProcesses()
-            .Select(process =>
-            {
-                using (process)
-                {
-                    try
-                    {
-                        return process.ProcessName + ".exe";
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        return null;
-                    }
-                }
-            })
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase)
-            .ToArray()!;
     }
 }

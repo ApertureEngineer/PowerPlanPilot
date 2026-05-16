@@ -1,12 +1,17 @@
-using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PowerPlanPilot;
 
 internal sealed partial class PowerPlanService
 {
+    private readonly IPowerCfgRunner _powerCfgRunner;
+
+    public PowerPlanService(IPowerCfgRunner? powerCfgRunner = null)
+    {
+        _powerCfgRunner = powerCfgRunner ?? new PowerCfgRunner();
+    }
+
     public IReadOnlyList<PowerPlan> GetPowerPlans()
     {
         var result = RunPowerCfg("/L");
@@ -47,42 +52,23 @@ internal sealed partial class PowerPlanService
             .ToArray();
     }
 
-    private static PowerCfgResult RunPowerCfg(string arguments)
+    private PowerCfgResult RunPowerCfg(string arguments)
     {
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo
+        var result = _powerCfgRunner.Run(arguments);
+        if (result.ExitCode == 0)
         {
-            FileName = "cmd.exe",
-            Arguments = $"/d /c \"chcp 65001>nul & powercfg {arguments}\"",
-            CreateNoWindow = true,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            StandardErrorEncoding = Encoding.UTF8,
-            StandardOutputEncoding = Encoding.UTF8,
-            UseShellExecute = false,
-        };
-
-        process.Start();
-        var output = process.StandardOutput.ReadToEnd();
-        var error = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-
-        if (process.ExitCode != 0)
-        {
-            var message = string.Format(
-                CultureInfo.CurrentCulture,
-                "powercfg {0} failed with exit code {1}.",
-                arguments,
-                process.ExitCode);
-
-            throw new PowerPlanCommandException(message, process.ExitCode, output, error);
+            return result;
         }
 
-        return new PowerCfgResult(output, error);
+        var message = string.Format(
+            CultureInfo.CurrentCulture,
+            "powercfg {0} failed with exit code {1}.",
+            arguments,
+            result.ExitCode);
+
+        throw new PowerPlanCommandException(message, result.ExitCode, result.Output, result.Error);
     }
 
     [GeneratedRegex(@"(?<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}).*?\((?<label>.+)\)\s*\*?$")]
     private static partial Regex PowerPlanLineRegex();
-
-    private sealed record PowerCfgResult(string Output, string Error);
 }
