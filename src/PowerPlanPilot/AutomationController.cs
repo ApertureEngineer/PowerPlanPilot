@@ -5,7 +5,7 @@ internal sealed class AutomationController : IDisposable
     private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(15);
 
     private readonly PowerPlanService _powerPlanService;
-    private readonly ProcessCpuSampler _processCpuSampler = new();
+    private readonly ProcessCpuSampler _processCpuSampler;
     private readonly System.Windows.Forms.Timer _timer = new()
     {
         Interval = (int)CheckInterval.TotalMilliseconds,
@@ -14,9 +14,10 @@ internal sealed class AutomationController : IDisposable
     private DateTimeOffset? _lowUsageSince;
     private string? _lastProcessName;
 
-    public AutomationController(PowerPlanService powerPlanService, AutomationSettings settings)
+    public AutomationController(PowerPlanService powerPlanService, AutomationSettings settings, ProcessCpuSampler? processCpuSampler = null)
     {
         _powerPlanService = powerPlanService;
+        _processCpuSampler = processCpuSampler ?? new ProcessCpuSampler();
         Settings = settings;
         Settings.Normalize();
         _timer.Tick += OnTimerTick;
