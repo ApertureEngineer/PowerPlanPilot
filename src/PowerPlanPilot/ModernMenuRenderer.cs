@@ -75,23 +75,26 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        var bounds = new Rectangle(e.ImageRectangle.Left - 1, e.ImageRectangle.Top - 1, 18, 18);
+        const int checkSize = 20;
+        var checkLeft = Math.Max(3, e.ImageRectangle.Left + ((e.ImageRectangle.Width - checkSize) / 2));
+        var checkTop = Math.Max(2, e.ImageRectangle.Top + ((e.ImageRectangle.Height - checkSize) / 2));
+        var bounds = new Rectangle(checkLeft, checkTop, checkSize, checkSize);
         using var fill = new SolidBrush(CheckFill);
-        using var path = RoundedRectangle(bounds, 5);
+        using var path = RoundedRectangle(bounds, 6);
         e.Graphics.FillPath(fill, path);
 
-        using var pen = new Pen(Accent, 2)
+        using var pen = new Pen(Accent, 2.4F)
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,
         };
 
         var left = bounds.Left + 5;
-        var middle = bounds.Left + 8;
-        var right = bounds.Left + 14;
-        var top = bounds.Top + 9;
-        var bottom = bounds.Top + 13;
-        var checkTop = bounds.Top + 5;
+        var middle = bounds.Left + 9;
+        var right = bounds.Left + 15;
+        var top = bounds.Top + 10;
+        var bottom = bounds.Top + 14;
+        var checkTop = bounds.Top + 6;
         e.Graphics.DrawLines(
             pen,
             [new Point(left, top), new Point(middle, bottom), new Point(right, checkTop)]);
