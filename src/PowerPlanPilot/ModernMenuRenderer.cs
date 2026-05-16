@@ -94,10 +94,10 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         var right = bounds.Left + 15;
         var top = bounds.Top + 10;
         var bottom = bounds.Top + 14;
-        var checkTop = bounds.Top + 6;
+        var tickEndTop = bounds.Top + 6;
         e.Graphics.DrawLines(
             pen,
-            [new Point(left, top), new Point(middle, bottom), new Point(right, checkTop)]);
+            [new Point(left, top), new Point(middle, bottom), new Point(right, tickEndTop)]);
     }
 
     private static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
