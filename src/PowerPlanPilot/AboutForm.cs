@@ -23,9 +23,11 @@ internal sealed class AboutForm : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
         AutoScroll = true;
-        ClientSize = new Size(660, 520);
-        MinimumSize = new Size(560, 440);
+        MinimumSize = new Size(560, 0);
+        MaximumSize = new Size(760, Screen.PrimaryScreen?.WorkingArea.Height - 80 ?? 900);
         BackColor = Color.White;
         Font = SystemFonts.MessageBoxFont;
         Icon = TrayIconFactory.CreateIcon(32);
@@ -38,8 +40,11 @@ internal sealed class AboutForm : Form
     {
         var layout = new TableLayoutPanel
         {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            MinimumSize = new Size(604, 0),
             RowCount = 5,
         };
 
@@ -67,6 +72,7 @@ internal sealed class AboutForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Top,
             Margin = new Padding(0, 0, 0, 18),
+            MinimumSize = new Size(604, 0),
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -108,6 +114,7 @@ internal sealed class AboutForm : Form
             Dock = DockStyle.Top,
             ForeColor = MutedText,
             Margin = new Padding(0, 6, 0, 0),
+            MaximumSize = new Size(500, 0),
             Text = $"Version {GetVersion()} - Windows tray power-plan assistant",
             TextAlign = ContentAlignment.MiddleLeft,
         }, 0, 1);
@@ -186,6 +193,7 @@ internal sealed class AboutForm : Form
             Dock = DockStyle.Fill,
             LinkArea = new LinkArea(0, RepositoryUrl.Length),
             LinkColor = Accent,
+            MaximumSize = new Size(604, 0),
             MinimumSize = new Size(0, 30),
             Text = RepositoryUrl,
             TextAlign = ContentAlignment.MiddleLeft,

@@ -344,6 +344,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _statusToast = new StatusToastForm(_trayIcon, message);
         _statusToast.FormClosed += OnStatusToastClosed;
         _statusToast.Show();
+        _statusToast.BringToFront();
     }
 
     private void CloseStatusToast()

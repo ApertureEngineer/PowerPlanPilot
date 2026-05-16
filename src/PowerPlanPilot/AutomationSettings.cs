@@ -14,6 +14,12 @@ internal sealed class AutomationSettings
 
     public int ProcessLowUsageMinutes { get; set; } = 10;
 
+    public Guid? ScaleUpPowerPlanId { get; set; }
+
+    public double ProcessHighCpuThresholdPercent { get; set; } = 50;
+
+    public int ProcessHighUsageMinutes { get; set; } = 2;
+
     public Guid? TargetPowerPlanId { get; set; }
 
     public bool SwitchOnAcPower { get; set; }
@@ -29,6 +35,8 @@ internal sealed class AutomationSettings
         IdleMinutes = Math.Clamp(IdleMinutes, 1, 1440);
         ProcessCpuThresholdPercent = Math.Clamp(ProcessCpuThresholdPercent, 0, 100);
         ProcessLowUsageMinutes = Math.Clamp(ProcessLowUsageMinutes, 1, 1440);
+        ProcessHighCpuThresholdPercent = Math.Clamp(ProcessHighCpuThresholdPercent, 0, 100);
+        ProcessHighUsageMinutes = Math.Clamp(ProcessHighUsageMinutes, 1, 1440);
 
         if (string.IsNullOrWhiteSpace(ProcessName))
         {

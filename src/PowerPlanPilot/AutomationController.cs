@@ -13,6 +13,7 @@ internal sealed class AutomationController : IDisposable
     };
 
     private DateTimeOffset? _lowUsageSince;
+    private DateTimeOffset? _highUsageSince;
     private string? _lastProcessName;
 
     public AutomationController(
@@ -45,6 +46,7 @@ internal sealed class AutomationController : IDisposable
     {
         Settings.Normalize();
         _lowUsageSince = null;
+        _highUsageSince = null;
         _processCpuSampler.Reset();
         Evaluate();
     }
@@ -69,12 +71,6 @@ internal sealed class AutomationController : IDisposable
         {
             if (EvaluatePowerSourceSwitch())
             {
-                return;
-            }
-
-            if (Settings.TargetPowerPlanId is null)
-            {
-                SetStatus("Automation needs a target power plan");
                 return;
             }
 
@@ -127,6 +123,12 @@ internal sealed class AutomationController : IDisposable
 
     private void EvaluateIdleTime()
     {
+        if (Settings.TargetPowerPlanId is null)
+        {
+            SetStatus("Idle automation needs a scale-down plan");
+            return;
+        }
+
         var idleTime = IdleTimeService.GetIdleTime();
         var threshold = TimeSpan.FromMinutes(Settings.IdleMinutes);
 
@@ -151,6 +153,7 @@ internal sealed class AutomationController : IDisposable
         {
             _lastProcessName = Settings.ProcessName;
             _lowUsageSince = null;
+            _highUsageSince = null;
             _processCpuSampler.Reset();
         }
 
@@ -158,40 +161,68 @@ internal sealed class AutomationController : IDisposable
         if (!usage.HasRunningProcess)
         {
             _lowUsageSince = null;
+            _highUsageSince = null;
             SetStatus($"Waiting for {Settings.ProcessName} to start");
             return;
         }
 
         if (!usage.HasBaseline)
         {
+            _lowUsageSince = null;
+            _highUsageSince = null;
             SetStatus($"Collecting CPU baseline for {Settings.ProcessName}");
             return;
         }
 
-        var isLowUsage = usage.Percent <= Settings.ProcessCpuThresholdPercent;
+        if (Settings.TargetPowerPlanId is null && Settings.ScaleUpPowerPlanId is null)
+        {
+            SetStatus("Process automation needs a power plan");
+            return;
+        }
+
+        var canScaleDown = Settings.TargetPowerPlanId is not null;
+        var canScaleUp = Settings.ScaleUpPowerPlanId is not null;
+        var isHighUsage = canScaleUp && usage.Percent >= Settings.ProcessHighCpuThresholdPercent;
+        var isLowUsage = canScaleDown && usage.Percent <= Settings.ProcessCpuThresholdPercent;
         var now = DateTimeOffset.UtcNow;
 
-        if (isLowUsage)
+        if (isHighUsage)
+        {
+            _highUsageSince ??= now;
+            _lowUsageSince = null;
+        }
+        else if (isLowUsage)
         {
             _lowUsageSince ??= now;
+            _highUsageSince = null;
         }
         else
         {
             _lowUsageSince = null;
+            _highUsageSince = null;
         }
 
         var lowUsageDuration = _lowUsageSince is null ? TimeSpan.Zero : now - _lowUsageSince.Value;
-        var requiredDuration = TimeSpan.FromMinutes(Settings.ProcessLowUsageMinutes);
+        var highUsageDuration = _highUsageSince is null ? TimeSpan.Zero : now - _highUsageSince.Value;
+        var requiredLowDuration = TimeSpan.FromMinutes(Settings.ProcessLowUsageMinutes);
+        var requiredHighDuration = TimeSpan.FromMinutes(Settings.ProcessHighUsageMinutes);
 
-        if (lowUsageDuration >= requiredDuration)
+        if (canScaleUp && highUsageDuration >= requiredHighDuration)
         {
-            ActivateTargetPlan(
-                $"{Settings.ProcessName} at {usage.Percent:F1}% CPU for {FormatDuration(lowUsageDuration)}");
+            ActivatePlan(
+                Settings.ScaleUpPowerPlanId!.Value,
+                $"{Settings.ProcessName} high at {usage.Percent:F1}% CPU for {FormatDuration(highUsageDuration)}");
             return;
         }
 
-        SetStatus(
-            $"{Settings.ProcessName}: {usage.Percent:F1}% CPU; low usage {FormatDuration(lowUsageDuration)} / {Settings.ProcessLowUsageMinutes}m");
+        if (canScaleDown && lowUsageDuration >= requiredLowDuration)
+        {
+            ActivateTargetPlan(
+                $"{Settings.ProcessName} low at {usage.Percent:F1}% CPU for {FormatDuration(lowUsageDuration)}");
+            return;
+        }
+
+        SetStatus(FormatProcessStatus(usage.Percent, lowUsageDuration, highUsageDuration));
     }
 
     private void ActivateTargetPlan(string reason)
@@ -242,5 +273,22 @@ internal sealed class AutomationController : IDisposable
         }
 
         return $"{Math.Max(0, duration.Seconds)}s";
+    }
+
+    private string FormatProcessStatus(double cpuPercent, TimeSpan lowUsageDuration, TimeSpan highUsageDuration)
+    {
+        var status = $"{Settings.ProcessName}: {cpuPercent:F1}% CPU";
+
+        if (Settings.ScaleUpPowerPlanId is not null)
+        {
+            status += $"; high {FormatDuration(highUsageDuration)} / {Settings.ProcessHighUsageMinutes}m";
+        }
+
+        if (Settings.TargetPowerPlanId is not null)
+        {
+            status += $"; low {FormatDuration(lowUsageDuration)} / {Settings.ProcessLowUsageMinutes}m";
+        }
+
+        return status;
     }
 }

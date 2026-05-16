@@ -26,6 +26,7 @@ internal sealed class StatusToastForm : Form
         FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false;
         MinimizeBox = false;
+        MinimumSize = new Size(420, 118);
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
@@ -87,6 +88,7 @@ internal sealed class StatusToastForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
             Dock = DockStyle.Top,
+            MinimumSize = new Size(420, 118),
             Padding = new Padding(18, 18, 18, 18),
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
