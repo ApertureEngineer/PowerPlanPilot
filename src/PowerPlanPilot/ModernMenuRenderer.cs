@@ -42,8 +42,10 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         }
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var bounds = new Rectangle(4, 2, e.Item.Width - 8, e.Item.Height - 4);
-        using var path = RoundedRectangle(bounds, 6);
+        var insetX = Scale(e.Graphics, 4);
+        var insetY = Scale(e.Graphics, 2);
+        var bounds = new Rectangle(insetX, insetY, e.Item.Width - (insetX * 2), e.Item.Height - (insetY * 2));
+        using var path = RoundedRectangle(bounds, Scale(e.Graphics, 6));
         using var brush = new SolidBrush(HoverFill);
         e.Graphics.FillPath(brush, path);
     }
@@ -55,14 +57,15 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 
         using var pen = new Pen(Separator);
         var x = e.AffectedBounds.Right - 1;
-        e.Graphics.DrawLine(pen, x, e.AffectedBounds.Top + 8, x, e.AffectedBounds.Bottom - 8);
+        var margin = Scale(e.Graphics, 8);
+        e.Graphics.DrawLine(pen, x, e.AffectedBounds.Top + margin, x, e.AffectedBounds.Bottom - margin);
     }
 
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
         using var pen = new Pen(Separator);
         var y = e.Item.Height / 2;
-        e.Graphics.DrawLine(pen, 36, y, e.Item.Width - 8, y);
+        e.Graphics.DrawLine(pen, Scale(e.Graphics, 36), y, e.Item.Width - Scale(e.Graphics, 8), y);
     }
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
@@ -75,30 +78,36 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        const int checkSize = 20;
+        var checkSize = Math.Min(Scale(e.Graphics, 20), Math.Max(8, e.Item.Height - Scale(e.Graphics, 4)));
         var checkLeft = Math.Max(3, e.ImageRectangle.Left + ((e.ImageRectangle.Width - checkSize) / 2));
         var checkTop = Math.Max(2, e.ImageRectangle.Top + ((e.ImageRectangle.Height - checkSize) / 2));
         var bounds = new Rectangle(checkLeft, checkTop, checkSize, checkSize);
         using var fill = new SolidBrush(CheckFill);
-        using var path = RoundedRectangle(bounds, 6);
+        using var path = RoundedRectangle(bounds, Scale(e.Graphics, 6));
         e.Graphics.FillPath(fill, path);
 
-        using var pen = new Pen(Accent, 2.4F)
+        using var pen = new Pen(Accent, Scale(e.Graphics, 2.4F))
         {
             StartCap = LineCap.Round,
             EndCap = LineCap.Round,
         };
 
-        var left = bounds.Left + 5;
-        var middle = bounds.Left + 9;
-        var right = bounds.Left + 15;
-        var top = bounds.Top + 10;
-        var bottom = bounds.Top + 14;
-        var tickEndTop = bounds.Top + 6;
+        var left = bounds.Left + Scale(e.Graphics, 5);
+        var middle = bounds.Left + Scale(e.Graphics, 9);
+        var right = bounds.Left + Scale(e.Graphics, 15);
+        var top = bounds.Top + Scale(e.Graphics, 10);
+        var bottom = bounds.Top + Scale(e.Graphics, 14);
+        var tickEndTop = bounds.Top + Scale(e.Graphics, 6);
         e.Graphics.DrawLines(
             pen,
             [new Point(left, top), new Point(middle, bottom), new Point(right, tickEndTop)]);
     }
+
+    private static int Scale(Graphics graphics, int value) =>
+        Math.Max(1, (int)Math.Round(value * graphics.DpiX / 96F));
+
+    private static float Scale(Graphics graphics, float value) =>
+        Math.Max(1F, value * graphics.DpiX / 96F);
 
     private static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
     {

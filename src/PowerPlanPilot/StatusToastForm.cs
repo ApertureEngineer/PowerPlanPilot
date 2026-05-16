@@ -19,8 +19,10 @@ internal sealed class StatusToastForm : Form
         _iconImage = icon.ToBitmap();
 
         AutoScaleMode = AutoScaleMode.Dpi;
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
         BackColor = Surface;
-        ClientSize = new Size(420, 118);
+        Font = SystemFonts.MessageBoxFont;
         FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -81,8 +83,10 @@ internal sealed class StatusToastForm : Form
     {
         var layout = new TableLayoutPanel
         {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             Padding = new Padding(18, 18, 18, 18),
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
@@ -98,31 +102,33 @@ internal sealed class StatusToastForm : Form
 
         var textLayout = new TableLayoutPanel
         {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             RowCount = 2,
         };
-        textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        textLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        textLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        textLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         textLayout.Controls.Add(new Label
         {
-            AutoEllipsis = true,
-            AutoSize = false,
-            Dock = DockStyle.Fill,
+            AutoSize = true,
+            Dock = DockStyle.Top,
             Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
             ForeColor = PrimaryText,
+            Margin = new Padding(0, 0, 0, 4),
             Text = "PowerPlanPilot",
             TextAlign = ContentAlignment.BottomLeft,
         }, 0, 0);
 
         textLayout.Controls.Add(new Label
         {
-            AutoEllipsis = true,
-            AutoSize = false,
-            Dock = DockStyle.Fill,
+            AutoSize = true,
+            Dock = DockStyle.Top,
             Font = new Font("Segoe UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point),
             ForeColor = SecondaryText,
+            MaximumSize = new Size(320, 0),
             Text = message,
             TextAlign = ContentAlignment.TopLeft,
         }, 0, 1);
@@ -134,9 +140,11 @@ internal sealed class StatusToastForm : Form
     private void PositionNearTaskbar()
     {
         var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        var left = Math.Max(workingArea.Left + 18, workingArea.Right - Width - 18);
+        var top = Math.Max(workingArea.Top + 18, workingArea.Bottom - Height - 18);
         Location = new Point(
-            workingArea.Right - Width - 18,
-            workingArea.Bottom - Height - 18);
+            left,
+            top);
     }
 
     private void OnCloseTimerTick(object? sender, EventArgs e)

@@ -295,7 +295,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _menu.BackColor = Color.White;
         _menu.ForeColor = Color.FromArgb(28, 35, 45);
-        _menu.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
+        _menu.Font = SystemFonts.MenuFont;
         _menu.Padding = new Padding(2, 8, 2, 8);
         _menu.Renderer = new ModernMenuRenderer();
         _menu.ShowCheckMargin = true;
