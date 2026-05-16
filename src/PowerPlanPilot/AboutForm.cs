@@ -23,11 +23,12 @@ internal sealed class AboutForm : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(560, 430);
+        ClientSize = new Size(660, 520);
+        MinimumSize = new Size(660, 520);
         BackColor = Color.White;
         Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
         Icon = TrayIconFactory.CreateIcon(32);
-        Padding = new Padding(22);
+        Padding = new Padding(28);
 
         Controls.Add(CreateContentPanel());
     }
@@ -41,11 +42,11 @@ internal sealed class AboutForm : Form
             RowCount = 5,
         };
 
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 86));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 116));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
 
         layout.Controls.Add(CreateHeader(), 0, 0);
         layout.Controls.Add(CreateDescription(), 0, 1);
@@ -64,7 +65,7 @@ internal sealed class AboutForm : Form
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 0, 18),
         };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         using var headerIcon = TrayIconFactory.CreateIcon(64);
@@ -82,15 +83,15 @@ internal sealed class AboutForm : Form
             Dock = DockStyle.Fill,
             RowCount = 3,
         };
-        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         titlePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         titlePanel.Controls.Add(new Label
         {
             AutoSize = false,
             Dock = DockStyle.Fill,
-            Font = new Font(Font.FontFamily, 18F, FontStyle.Bold, GraphicsUnit.Point),
+            Font = new Font(Font.FontFamily, 17F, FontStyle.Bold, GraphicsUnit.Point),
             ForeColor = TitleText,
             Text = "PowerPlanPilot",
             TextAlign = ContentAlignment.MiddleLeft,
@@ -119,6 +120,7 @@ internal sealed class AboutForm : Form
             ForeColor = BodyText,
             Margin = new Padding(0, 0, 0, 16),
             Text = "Fast switching for Windows power plans, with lightweight automation for idle time and process CPU usage. Settings stay per user and Windows keeps the active plan.",
+            TextAlign = ContentAlignment.MiddleLeft,
         };
     }
 
@@ -136,9 +138,9 @@ internal sealed class AboutForm : Form
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.4F));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.3F));
 
-        panel.Controls.Add(CreateDetailLabel("Live powercfg", "Reads plans on demand"), 0, 0);
-        panel.Controls.Add(CreateDetailLabel("Automation", "Idle, CPU, AC/battery"), 1, 0);
-        panel.Controls.Add(CreateDetailLabel("Per-user", "%APPDATA% settings"), 2, 0);
+        panel.Controls.Add(CreateDetailCell("Live powercfg", "Reads plans on demand"), 0, 0);
+        panel.Controls.Add(CreateDetailCell("Automation", "Idle, CPU, AC/battery"), 1, 0);
+        panel.Controls.Add(CreateDetailCell("Per-user", "%APPDATA% settings"), 2, 0);
         panel.Paint += (_, e) => DrawPanelBorder(e.Graphics, panel.ClientRectangle);
 
         return panel;
@@ -152,8 +154,8 @@ internal sealed class AboutForm : Form
             Dock = DockStyle.Fill,
             RowCount = 2,
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
 
         panel.Controls.Add(new Label
         {
@@ -206,16 +208,37 @@ internal sealed class AboutForm : Form
         return panel;
     }
 
-    private Label CreateDetailLabel(string title, string subtitle)
+    private Control CreateDetailCell(string title, string subtitle)
     {
-        return new Label
+        var panel = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            Dock = DockStyle.Fill,
+            RowCount = 2,
+        };
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+
+        panel.Controls.Add(new Label
         {
             AutoSize = false,
             Dock = DockStyle.Fill,
             ForeColor = BodyText,
-            Text = string.Join(Environment.NewLine, title, subtitle),
-            TextAlign = ContentAlignment.MiddleLeft,
-        };
+            Text = title,
+            TextAlign = ContentAlignment.BottomLeft,
+        }, 0, 0);
+
+        panel.Controls.Add(new Label
+        {
+            AutoEllipsis = true,
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            ForeColor = MutedText,
+            Text = subtitle,
+            TextAlign = ContentAlignment.TopLeft,
+        }, 0, 1);
+
+        return panel;
     }
 
     private static void DrawPanelBorder(Graphics graphics, Rectangle bounds)

@@ -17,6 +17,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly Icon _trayIcon;
     private readonly Font _headerFont;
     private readonly string? _settingsWarning;
+    private StatusToastForm? _statusToast;
 
     public TrayApplicationContext(PowerPlanService powerPlanService)
         : this(powerPlanService, new SystemProcessService())
@@ -74,6 +75,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _notifyIcon.MouseUp -= OnTrayMouseUp;
             _automationController.StatusChanged -= OnAutomationStatusChanged;
+            CloseStatusToast();
             _automationController.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
@@ -337,9 +339,39 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowStatus(string message)
     {
-        _notifyIcon.BalloonTipTitle = "PowerPlanPilot";
-        _notifyIcon.BalloonTipText = message;
-        _notifyIcon.BalloonTipIcon = ToolTipIcon.Info;
-        _notifyIcon.ShowBalloonTip(1200);
+        CloseStatusToast();
+
+        _statusToast = new StatusToastForm(_trayIcon, message);
+        _statusToast.FormClosed += OnStatusToastClosed;
+        _statusToast.Show();
+    }
+
+    private void CloseStatusToast()
+    {
+        if (_statusToast is null)
+        {
+            return;
+        }
+
+        _statusToast.FormClosed -= OnStatusToastClosed;
+        _statusToast.Close();
+        _statusToast.Dispose();
+        _statusToast = null;
+    }
+
+    private void OnStatusToastClosed(object? sender, FormClosedEventArgs e)
+    {
+        if (sender is not StatusToastForm statusToast)
+        {
+            return;
+        }
+
+        statusToast.FormClosed -= OnStatusToastClosed;
+        statusToast.Dispose();
+
+        if (ReferenceEquals(_statusToast, statusToast))
+        {
+            _statusToast = null;
+        }
     }
 }
