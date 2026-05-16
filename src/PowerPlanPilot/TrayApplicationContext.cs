@@ -256,17 +256,91 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void AddUtilityItems()
     {
+        AddHeaderItem("Tools");
+
         var refreshItem = new ToolStripMenuItem("Refresh", null, (_, _) => RebuildMenu())
         {
             Padding = new Padding(2, 3, 8, 3),
         };
         _menu.Items.Add(refreshItem);
 
+        var powerOptionsItem = new ToolStripMenuItem("Windows power options", null, (_, _) => OpenWindowsPowerOptions())
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        };
+        _menu.Items.Add(powerOptionsItem);
+
+        var autostartItem = new ToolStripMenuItem("Start with Windows", null, (_, _) => ToggleAutostart())
+        {
+            Checked = AutostartManager.IsEnabled(),
+            Padding = new Padding(2, 3, 8, 3),
+        };
+        _menu.Items.Add(autostartItem);
+
+        var infoItem = new ToolStripMenuItem("Info", null, (_, _) => ShowInfo())
+        {
+            Padding = new Padding(2, 3, 8, 3),
+        };
+        _menu.Items.Add(infoItem);
+
         var exitItem = new ToolStripMenuItem("Exit", null, (_, _) => ExitThread())
         {
             Padding = new Padding(2, 3, 8, 3),
         };
         _menu.Items.Add(exitItem);
+    }
+
+    private void OpenWindowsPowerOptions()
+    {
+        try
+        {
+            StartShellProcess("control.exe", "powercfg.cpl");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                ex.Message,
+                "PowerPlanPilot",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private void ToggleAutostart()
+    {
+        try
+        {
+            AutostartManager.SetEnabled(!AutostartManager.IsEnabled());
+            ShowStatus(AutostartManager.IsEnabled() ? "Autostart enabled" : "Autostart disabled");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                ex.Message,
+                "PowerPlanPilot",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            RebuildMenu();
+        }
+    }
+
+    private void ShowInfo()
+    {
+        using var aboutForm = new AboutForm();
+        aboutForm.ShowDialog();
+    }
+
+    private static void StartShellProcess(string fileName, string arguments)
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            UseShellExecute = true,
+        });
     }
 
     private void AddHeaderItem(string text)

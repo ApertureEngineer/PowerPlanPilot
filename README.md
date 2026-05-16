@@ -14,6 +14,8 @@ switching and simple automatic scale-down rules.
   `Ü`, `ä`, `ö`, `ü`, `ß`, and other special characters, by forcing `powercfg`
   output through UTF-8.
 - Saves automation settings in `%APPDATA%\PowerPlanPilot\automation.json`.
+- Includes tray tools for Windows Power Options, per-user autostart, and project
+  info/credits.
 
 ## What is saved?
 
@@ -50,6 +52,21 @@ create a fresh settings file on the next saved change.
 dotnet build
 ```
 
+## Publish locally
+
+Create a regular Windows publish output with:
+
+```powershell
+dotnet publish .\src\PowerPlanPilot\PowerPlanPilot.csproj -c Release -r win-x64 --self-contained true
+```
+
+For Microsoft Store distribution, package the WinForms app as MSIX with a
+Windows Application Packaging Project in Visual Studio, add Store-ready image
+assets in that packaging project, test the generated package with the Windows App
+Certification Kit, then upload the `.msixupload` or `.msixbundle` in Partner
+Center. Store-packaged autostart should use the package manifest
+`windows.startup` extension instead of the unpackaged registry Run key.
+
 ## Run
 
 ```powershell
@@ -63,5 +80,9 @@ dotnet run --project .\src\PowerPlanPilot\PowerPlanPilot.csproj
 - Test names with umlauts and special characters, for example
   `Trading ÄÖÜ äöü ß + # (Test)`, and confirm the tray menu displays them
   correctly.
+- Click **Windows power options** and confirm native Windows Power Options opens.
+- Toggle **Start with Windows**, restart Windows, and confirm PowerPlanPilot starts
+  for the current user.
+- Open **Info** and confirm credits and the repository/homepage link are shown.
 - Change automation settings, close the app, rebuild or restart it, and confirm
   the saved values are restored from `%APPDATA%\PowerPlanPilot\automation.json`.
