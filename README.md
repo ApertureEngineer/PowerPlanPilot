@@ -43,8 +43,7 @@ create a fresh settings file on the next saved change.
   of minutes.
 - Switch to the target plan when a selected running process stays below a
   configured CPU percentage for a configured number of minutes.
-- Pick the watched process from the current process list, including long-running
-  tools such as `cTrader.exe` or `cAlgo.exe`.
+- Pick the watched process from the current process list, including long-running tools or Benchmarks.
 
 ## Build
 
@@ -77,9 +76,7 @@ dotnet run --project .\src\PowerPlanPilot\PowerPlanPilot.csproj
 
 - Add or rename a Windows power plan, then open the tray menu or click
   **Refresh**. The plan should appear with its current name.
-- Test names with umlauts and special characters, for example
-  `Trading ÄÖÜ äöü ß + # (Test)`, and confirm the tray menu displays them
-  correctly.
+- Test names with umlauts and special characters, for example the german power plan: `Höchstleistung`, and confirm the tray menu displays them correctly.
 - Click **Windows power options** and confirm native Windows Power Options opens.
 - Toggle **Start with Windows**, restart Windows, and confirm PowerPlanPilot starts
   for the current user.
