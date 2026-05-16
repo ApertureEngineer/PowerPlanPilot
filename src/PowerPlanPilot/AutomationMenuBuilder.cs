@@ -86,6 +86,7 @@ internal sealed class AutomationMenuBuilder
 
         AddTargetPlanMenu(plans, settings);
         AddSwitchConditionMenu(settings);
+        AddPowerSourceMenus(plans, settings);
 
         _menu.Items.Add(_createMenuItem(
             $"Idle threshold: {settings.IdleMinutes} minutes",
@@ -136,6 +137,65 @@ internal sealed class AutomationMenuBuilder
         _menu.Items.Add(modeMenu);
     }
 
+    private void AddPowerSourceMenus(IReadOnlyList<PowerPlan> plans, AutomationSettings settings)
+    {
+        _menu.Items.Add(CreatePowerSourceMenu(
+            $"On AC: {GetPlanName(plans, settings.AcPowerPlanId)}",
+            "Switch automatically on AC",
+            settings.SwitchOnAcPower,
+            settings.AcPowerPlanId,
+            plans,
+            s => s.SwitchOnAcPower = !s.SwitchOnAcPower,
+            (s, planId) => s.AcPowerPlanId = planId));
+
+        _menu.Items.Add(CreatePowerSourceMenu(
+            $"On battery: {GetPlanName(plans, settings.BatteryPowerPlanId)}",
+            "Switch automatically on battery",
+            settings.SwitchOnBattery,
+            settings.BatteryPowerPlanId,
+            plans,
+            s => s.SwitchOnBattery = !s.SwitchOnBattery,
+            (s, planId) => s.BatteryPowerPlanId = planId));
+    }
+
+    private ToolStripMenuItem CreatePowerSourceMenu(
+        string text,
+        string toggleText,
+        bool isEnabled,
+        Guid? selectedPlanId,
+        IReadOnlyList<PowerPlan> plans,
+        Action<AutomationSettings> toggle,
+        Action<AutomationSettings, Guid?> setPlanId)
+    {
+        var menu = _createMenuItem(text);
+        menu.DropDownItems.Add(_createCheckedMenuItem(
+            toggleText,
+            isEnabled,
+            (_, _) => _updateAutomationSetting(toggle)));
+        menu.DropDownItems.Add(new ToolStripSeparator());
+
+        if (plans.Count == 0)
+        {
+            menu.DropDownItems.Add(_createMenuItem("No plans available", enabled: false));
+            return menu;
+        }
+
+        menu.DropDownItems.Add(_createCheckedMenuItem(
+            "No plan selected",
+            selectedPlanId is null,
+            (_, _) => _updateAutomationSetting(s => setPlanId(s, null))));
+
+        foreach (var plan in plans)
+        {
+            menu.DropDownItems.Add(_createCheckedMenuItem(
+                plan.Name,
+                selectedPlanId == plan.Id,
+                (_, _) => _updateAutomationSetting(s => setPlanId(s, plan.Id))));
+        }
+
+        return menu;
+    }
+
     private void AddProcessItems(AutomationSettings settings)
     {
         var processMenu = _createMenuItem($"Process: {settings.ProcessName ?? "not selected"}");
@@ -177,5 +237,15 @@ internal sealed class AutomationMenuBuilder
                 1,
                 1440,
                 value => settings.ProcessLowUsageMinutes = value)));
+    }
+
+    private static string GetPlanName(IReadOnlyList<PowerPlan> plans, Guid? planId)
+    {
+        if (planId is null)
+        {
+            return "not selected";
+        }
+
+        return plans.FirstOrDefault(plan => plan.Id == planId)?.Name ?? "missing plan";
     }
 }

@@ -339,6 +339,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _notifyIcon.BalloonTipTitle = "PowerPlanPilot";
         _notifyIcon.BalloonTipText = message;
+        _notifyIcon.BalloonTipIcon = ToolTipIcon.Info;
         _notifyIcon.ShowBalloonTip(1200);
     }
 }

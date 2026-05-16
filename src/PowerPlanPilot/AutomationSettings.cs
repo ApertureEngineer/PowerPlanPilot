@@ -16,6 +16,14 @@ internal sealed class AutomationSettings
 
     public Guid? TargetPowerPlanId { get; set; }
 
+    public bool SwitchOnAcPower { get; set; }
+
+    public Guid? AcPowerPlanId { get; set; }
+
+    public bool SwitchOnBattery { get; set; }
+
+    public Guid? BatteryPowerPlanId { get; set; }
+
     public void Normalize()
     {
         IdleMinutes = Math.Clamp(IdleMinutes, 1, 1440);

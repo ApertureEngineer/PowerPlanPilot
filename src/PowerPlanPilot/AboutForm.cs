@@ -22,7 +22,8 @@ internal sealed class AboutForm : Form
         MinimizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(520, 360);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        ClientSize = new Size(560, 430);
         BackColor = Color.White;
         Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
         Icon = TrayIconFactory.CreateIcon(32);
@@ -40,11 +41,11 @@ internal sealed class AboutForm : Form
             RowCount = 5,
         };
 
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 86));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
 
         layout.Controls.Add(CreateHeader(), 0, 0);
         layout.Controls.Add(CreateDescription(), 0, 1);
@@ -61,9 +62,9 @@ internal sealed class AboutForm : Form
         {
             ColumnCount = 2,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 0, 10),
+            Margin = new Padding(0, 0, 0, 18),
         };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         using var headerIcon = TrayIconFactory.CreateIcon(64);
@@ -71,7 +72,7 @@ internal sealed class AboutForm : Form
         {
             Dock = DockStyle.Fill,
             Image = headerIcon.ToBitmap(),
-            Margin = new Padding(0, 2, 14, 0),
+            Margin = new Padding(0, 2, 18, 0),
             SizeMode = PictureBoxSizeMode.CenterImage,
         };
 
@@ -81,8 +82,8 @@ internal sealed class AboutForm : Form
             Dock = DockStyle.Fill,
             RowCount = 3,
         };
-        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        titlePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         titlePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         titlePanel.Controls.Add(new Label
@@ -100,7 +101,7 @@ internal sealed class AboutForm : Form
             AutoSize = false,
             Dock = DockStyle.Fill,
             ForeColor = MutedText,
-            Text = $"Version {GetVersion()} • Windows tray power-plan assistant",
+            Text = $"Version {GetVersion()} - Windows tray power-plan assistant",
             TextAlign = ContentAlignment.MiddleLeft,
         }, 0, 1);
 
@@ -116,7 +117,7 @@ internal sealed class AboutForm : Form
             AutoSize = false,
             Dock = DockStyle.Fill,
             ForeColor = BodyText,
-            Margin = new Padding(0, 0, 0, 12),
+            Margin = new Padding(0, 0, 0, 16),
             Text = "Fast switching for Windows power plans, with lightweight automation for idle time and process CPU usage. Settings stay per user and Windows keeps the active plan.",
         };
     }
@@ -128,7 +129,7 @@ internal sealed class AboutForm : Form
             BackColor = PanelBack,
             ColumnCount = 3,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 0, 14),
+            Margin = new Padding(0, 0, 0, 18),
             Padding = new Padding(14, 10, 14, 10),
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.3F));
@@ -136,7 +137,7 @@ internal sealed class AboutForm : Form
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.3F));
 
         panel.Controls.Add(CreateDetailLabel("Live powercfg", "Reads plans on demand"), 0, 0);
-        panel.Controls.Add(CreateDetailLabel("Automation", "Idle or process CPU"), 1, 0);
+        panel.Controls.Add(CreateDetailLabel("Automation", "Idle, CPU, AC/battery"), 1, 0);
         panel.Controls.Add(CreateDetailLabel("Per-user", "%APPDATA% settings"), 2, 0);
         panel.Paint += (_, e) => DrawPanelBorder(e.Graphics, panel.ClientRectangle);
 

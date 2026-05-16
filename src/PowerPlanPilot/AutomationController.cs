@@ -6,6 +6,7 @@ internal sealed class AutomationController : IDisposable
 
     private readonly PowerPlanService _powerPlanService;
     private readonly ProcessCpuSampler _processCpuSampler;
+    private readonly Func<PowerLineStatus> _getPowerLineStatus;
     private readonly System.Windows.Forms.Timer _timer = new()
     {
         Interval = (int)CheckInterval.TotalMilliseconds,
@@ -14,10 +15,15 @@ internal sealed class AutomationController : IDisposable
     private DateTimeOffset? _lowUsageSince;
     private string? _lastProcessName;
 
-    public AutomationController(PowerPlanService powerPlanService, AutomationSettings settings, ProcessCpuSampler? processCpuSampler = null)
+    public AutomationController(
+        PowerPlanService powerPlanService,
+        AutomationSettings settings,
+        ProcessCpuSampler? processCpuSampler = null,
+        Func<PowerLineStatus>? getPowerLineStatus = null)
     {
         _powerPlanService = powerPlanService;
         _processCpuSampler = processCpuSampler ?? new ProcessCpuSampler();
+        _getPowerLineStatus = getPowerLineStatus ?? (() => SystemInformation.PowerStatus.PowerLineStatus);
         Settings = settings;
         Settings.Normalize();
         _timer.Tick += OnTimerTick;
@@ -59,14 +65,19 @@ internal sealed class AutomationController : IDisposable
             return;
         }
 
-        if (Settings.TargetPowerPlanId is null)
-        {
-            SetStatus("Automation needs a target power plan");
-            return;
-        }
-
         try
         {
+            if (EvaluatePowerSourceSwitch())
+            {
+                return;
+            }
+
+            if (Settings.TargetPowerPlanId is null)
+            {
+                SetStatus("Automation needs a target power plan");
+                return;
+            }
+
             switch (Settings.Mode)
             {
                 case AutomationMode.IdleTime:
@@ -81,6 +92,37 @@ internal sealed class AutomationController : IDisposable
         {
             SetStatus($"Automation error: {ex.Message}");
         }
+    }
+
+    private bool EvaluatePowerSourceSwitch()
+    {
+        var powerLineStatus = _getPowerLineStatus();
+
+        if (powerLineStatus == PowerLineStatus.Online && Settings.SwitchOnAcPower)
+        {
+            if (Settings.AcPowerPlanId is not { } targetPlanId)
+            {
+                SetStatus("AC automation needs a power plan");
+                return true;
+            }
+
+            ActivatePlan(targetPlanId, "On AC power");
+            return true;
+        }
+
+        if (powerLineStatus == PowerLineStatus.Offline && Settings.SwitchOnBattery)
+        {
+            if (Settings.BatteryPowerPlanId is not { } targetPlanId)
+            {
+                SetStatus("Battery automation needs a power plan");
+                return true;
+            }
+
+            ActivatePlan(targetPlanId, "On battery");
+            return true;
+        }
+
+        return false;
     }
 
     private void EvaluateIdleTime()
@@ -159,6 +201,11 @@ internal sealed class AutomationController : IDisposable
             return;
         }
 
+        ActivatePlan(targetPlanId, reason);
+    }
+
+    private void ActivatePlan(Guid targetPlanId, string reason)
+    {
         var activePlan = _powerPlanService.GetPowerPlans().FirstOrDefault(plan => plan.IsActive);
         if (activePlan?.Id == targetPlanId)
         {
