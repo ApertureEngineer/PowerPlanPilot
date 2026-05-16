@@ -17,24 +17,26 @@ internal sealed class AutomationSettingsStore
         _settingsPath = Path.Combine(appData, "PowerPlanPilot", "automation.json");
     }
 
-    public AutomationSettings Load()
+    public AutomationSettingsLoadResult Load()
     {
         try
         {
             if (!File.Exists(_settingsPath))
             {
-                return new AutomationSettings();
+                return new AutomationSettingsLoadResult(new AutomationSettings(), null);
             }
 
             using var stream = File.OpenRead(_settingsPath);
             var settings = JsonSerializer.Deserialize<AutomationSettings>(stream, SerializerOptions)
                 ?? new AutomationSettings();
             settings.Normalize();
-            return settings;
+            return new AutomationSettingsLoadResult(settings, null);
         }
-        catch
+        catch (Exception ex)
         {
-            return new AutomationSettings();
+            return new AutomationSettingsLoadResult(
+                new AutomationSettings(),
+                $"Settings reset: {ex.Message}");
         }
     }
 

@@ -1,0 +1,181 @@
+namespace PowerPlanPilot;
+
+internal sealed class AutomationMenuBuilder
+{
+    private readonly ContextMenuStrip _menu;
+    private readonly AutomationController _automationController;
+    private readonly IProcessNameProvider _processNameProvider;
+    private readonly Action<string> _addHeaderItem;
+    private readonly Action<string> _addDisabledItem;
+    private readonly CreateMenuItemDelegate _createMenuItem;
+    private readonly CreateCheckedMenuItemDelegate _createCheckedMenuItem;
+    private readonly Action<Action<AutomationSettings>> _updateAutomationSetting;
+    private readonly PromptForIntegerDelegate _promptForInteger;
+    private readonly PromptForDoubleDelegate _promptForDouble;
+    private readonly string? _settingsWarning;
+
+    public AutomationMenuBuilder(
+        ContextMenuStrip menu,
+        AutomationController automationController,
+        IProcessNameProvider processNameProvider,
+        Action<string> addHeaderItem,
+        Action<string> addDisabledItem,
+        CreateMenuItemDelegate createMenuItem,
+        CreateCheckedMenuItemDelegate createCheckedMenuItem,
+        Action<Action<AutomationSettings>> updateAutomationSetting,
+        PromptForIntegerDelegate promptForInteger,
+        PromptForDoubleDelegate promptForDouble,
+        string? settingsWarning)
+    {
+        _menu = menu;
+        _automationController = automationController;
+        _processNameProvider = processNameProvider;
+        _addHeaderItem = addHeaderItem;
+        _addDisabledItem = addDisabledItem;
+        _createMenuItem = createMenuItem;
+        _createCheckedMenuItem = createCheckedMenuItem;
+        _updateAutomationSetting = updateAutomationSetting;
+        _promptForInteger = promptForInteger;
+        _promptForDouble = promptForDouble;
+        _settingsWarning = settingsWarning;
+    }
+
+    public delegate ToolStripMenuItem CreateMenuItemDelegate(
+        string text,
+        EventHandler? onClick = null,
+        object? tag = null,
+        bool enabled = true);
+
+    public delegate ToolStripMenuItem CreateCheckedMenuItemDelegate(
+        string text,
+        bool isChecked,
+        EventHandler? onClick = null,
+        object? tag = null);
+
+    public delegate void PromptForIntegerDelegate(
+        string title,
+        string prompt,
+        int currentValue,
+        int minimum,
+        int maximum,
+        Action<int> apply);
+
+    public delegate void PromptForDoubleDelegate(
+        string title,
+        string prompt,
+        double currentValue,
+        double minimum,
+        double maximum,
+        Action<double> apply);
+
+    public void AddAutomationItems(IReadOnlyList<PowerPlan> plans)
+    {
+        _addHeaderItem("Automation");
+
+        var settings = _automationController.Settings;
+        _menu.Items.Add(_createCheckedMenuItem(
+            "Enable automation",
+            settings.IsEnabled,
+            (_, _) => _updateAutomationSetting(s => s.IsEnabled = !s.IsEnabled)));
+
+        _addDisabledItem(_automationController.StatusText);
+        if (!string.IsNullOrWhiteSpace(_settingsWarning))
+        {
+            _addDisabledItem(_settingsWarning);
+        }
+
+        AddTargetPlanMenu(plans, settings);
+        AddSwitchConditionMenu(settings);
+
+        _menu.Items.Add(_createMenuItem(
+            $"Idle threshold: {settings.IdleMinutes} minutes",
+            (_, _) => _promptForInteger(
+                "Idle threshold",
+                "Switch to the scale-down plan after this many idle minutes:",
+                settings.IdleMinutes,
+                1,
+                1440,
+                value => settings.IdleMinutes = value)));
+
+        AddProcessItems(settings);
+    }
+
+    private void AddTargetPlanMenu(IReadOnlyList<PowerPlan> plans, AutomationSettings settings)
+    {
+        var targetMenu = _createMenuItem("Scale-down target plan");
+
+        if (plans.Count == 0)
+        {
+            targetMenu.DropDownItems.Add(_createMenuItem("No plans available", enabled: false));
+        }
+        else
+        {
+            foreach (var plan in plans)
+            {
+                targetMenu.DropDownItems.Add(_createCheckedMenuItem(
+                    plan.Name,
+                    settings.TargetPowerPlanId == plan.Id,
+                    (_, _) => _updateAutomationSetting(s => s.TargetPowerPlanId = plan.Id)));
+            }
+        }
+
+        _menu.Items.Add(targetMenu);
+    }
+
+    private void AddSwitchConditionMenu(AutomationSettings settings)
+    {
+        var modeMenu = _createMenuItem("Switch condition");
+        modeMenu.DropDownItems.Add(_createCheckedMenuItem(
+            "Idle time",
+            settings.Mode == AutomationMode.IdleTime,
+            (_, _) => _updateAutomationSetting(s => s.Mode = AutomationMode.IdleTime)));
+        modeMenu.DropDownItems.Add(_createCheckedMenuItem(
+            "Process CPU usage",
+            settings.Mode == AutomationMode.ProcessCpu,
+            (_, _) => _updateAutomationSetting(s => s.Mode = AutomationMode.ProcessCpu)));
+        _menu.Items.Add(modeMenu);
+    }
+
+    private void AddProcessItems(AutomationSettings settings)
+    {
+        var processMenu = _createMenuItem($"Process: {settings.ProcessName ?? "not selected"}");
+
+        var processNames = _processNameProvider.GetOpenProcessNames();
+        if (processNames.Count == 0)
+        {
+            processMenu.DropDownItems.Add(_createMenuItem("No processes available", enabled: false));
+        }
+        else
+        {
+            foreach (var processName in processNames)
+            {
+                processMenu.DropDownItems.Add(_createCheckedMenuItem(
+                    processName,
+                    string.Equals(settings.ProcessName, processName, StringComparison.OrdinalIgnoreCase),
+                    (_, _) => _updateAutomationSetting(s => s.ProcessName = processName)));
+            }
+        }
+
+        _menu.Items.Add(processMenu);
+
+        _menu.Items.Add(_createMenuItem(
+            $"CPU threshold: {settings.ProcessCpuThresholdPercent:F1}%",
+            (_, _) => _promptForDouble(
+                "Process CPU threshold",
+                "Switch when the selected process stays under this CPU percentage:",
+                settings.ProcessCpuThresholdPercent,
+                0,
+                100,
+                value => settings.ProcessCpuThresholdPercent = value)));
+
+        _menu.Items.Add(_createMenuItem(
+            $"Low-usage duration: {settings.ProcessLowUsageMinutes} minutes",
+            (_, _) => _promptForInteger(
+                "Low-usage duration",
+                "Switch after the selected process stays below the CPU threshold for this many minutes:",
+                settings.ProcessLowUsageMinutes,
+                1,
+                1440,
+                value => settings.ProcessLowUsageMinutes = value)));
+    }
+}

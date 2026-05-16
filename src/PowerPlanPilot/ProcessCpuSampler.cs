@@ -1,14 +1,18 @@
-using System.Diagnostics;
-
 namespace PowerPlanPilot;
 
 internal sealed class ProcessCpuSampler
 {
-    private readonly Dictionary<int, ProcessSample> _previousSamples = [];
+    private readonly IProcessCpuSampleSource _sampleSource;
+    private readonly Dictionary<int, TimestampedProcessSample> _previousSamples = [];
+
+    public ProcessCpuSampler(IProcessCpuSampleSource? sampleSource = null)
+    {
+        _sampleSource = sampleSource ?? new SystemProcessService();
+    }
 
     public ProcessCpuUsage GetCpuUsagePercent(string processName)
     {
-        var currentSamples = GetCurrentSamples(processName);
+        var currentSamples = _sampleSource.GetCurrentSamples(processName);
         var now = DateTimeOffset.UtcNow;
         double cpuPercent = 0;
         var matchedPreviousSample = false;
@@ -42,7 +46,7 @@ internal sealed class ProcessCpuSampler
         _previousSamples.Clear();
         foreach (var sample in currentSamples)
         {
-            _previousSamples[sample.ProcessId] = sample with { Timestamp = now };
+            _previousSamples[sample.ProcessId] = new TimestampedProcessSample(sample.ProcessId, sample.TotalProcessorTime, now);
         }
 
         return new ProcessCpuUsage(
@@ -53,38 +57,5 @@ internal sealed class ProcessCpuSampler
 
     public void Reset() => _previousSamples.Clear();
 
-    private static IReadOnlyList<ProcessSample> GetCurrentSamples(string processName)
-    {
-        var normalizedName = Path.GetFileNameWithoutExtension(processName);
-        var samples = new List<ProcessSample>();
-
-        foreach (var process in Process.GetProcessesByName(normalizedName))
-        {
-            using (process)
-            {
-                try
-                {
-                    if (process.HasExited)
-                    {
-                        continue;
-                    }
-
-                    samples.Add(new ProcessSample(
-                        process.Id,
-                        process.TotalProcessorTime,
-                        DateTimeOffset.UtcNow));
-                }
-                catch (InvalidOperationException)
-                {
-                }
-                catch (System.ComponentModel.Win32Exception)
-                {
-                }
-            }
-        }
-
-        return samples;
-    }
-
-    private sealed record ProcessSample(int ProcessId, TimeSpan TotalProcessorTime, DateTimeOffset Timestamp);
+    private sealed record TimestampedProcessSample(int ProcessId, TimeSpan TotalProcessorTime, DateTimeOffset Timestamp);
 }
