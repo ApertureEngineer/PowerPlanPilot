@@ -43,9 +43,51 @@ internal sealed class AutomationSettingsStore
     public void Save(AutomationSettings settings)
     {
         settings.Normalize();
-        Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+        var settingsDirectory = Path.GetDirectoryName(_settingsPath)!;
+        Directory.CreateDirectory(settingsDirectory);
 
-        using var stream = File.Create(_settingsPath);
-        JsonSerializer.Serialize(stream, settings, SerializerOptions);
+        var tempPath = Path.Combine(
+            settingsDirectory,
+            $"{Path.GetFileName(_settingsPath)}.{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, settings, SerializerOptions);
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(_settingsPath))
+            {
+                File.Replace(tempPath, _settingsPath, null);
+            }
+            else
+            {
+                File.Move(tempPath, _settingsPath);
+            }
+        }
+        catch
+        {
+            TryDeleteTempFile(tempPath);
+            throw;
+        }
+    }
+
+    private static void TryDeleteTempFile(string tempPath)
+    {
+        try
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 }

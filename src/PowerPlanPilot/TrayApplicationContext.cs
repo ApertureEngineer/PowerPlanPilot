@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace PowerPlanPilot;
 
@@ -13,6 +14,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly PowerPlanService _powerPlanService;
     private readonly IProcessNameProvider _processNameProvider;
     private readonly ContextMenuStrip _menu = new();
+    private readonly NativeWindow _menuOwnerWindow = new();
     private readonly NotifyIcon _notifyIcon;
     private readonly Icon _trayIcon;
     private readonly Font _headerFont;
@@ -36,6 +38,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _trayIcon = TrayIconFactory.CreateIcon();
 
         ConfigureMenu();
+        _menuOwnerWindow.CreateHandle(new CreateParams());
         _headerFont = new Font(_menu.Font, FontStyle.Bold);
         _automationMenuBuilder = new AutomationMenuBuilder(
             _menu,
@@ -49,11 +52,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             PromptForInteger,
             PromptForDouble,
             _settingsWarning);
-        _menu.Opening += (_, _) => RebuildMenu();
 
         _notifyIcon = new NotifyIcon
         {
-            ContextMenuStrip = _menu,
             Icon = _trayIcon,
             Text = "PowerPlanPilot",
             Visible = true,
@@ -81,6 +82,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _notifyIcon.Dispose();
             _trayIcon.Dispose();
             _menu.Dispose();
+            _menuOwnerWindow.DestroyHandle();
             _headerFont.Dispose();
         }
 
@@ -89,13 +91,20 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void OnTrayMouseUp(object? sender, MouseEventArgs e)
     {
-        if (e.Button != MouseButtons.Left)
+        if (e.Button is not (MouseButtons.Left or MouseButtons.Right))
         {
             return;
         }
 
+        ShowTrayMenu();
+    }
+
+    private void ShowTrayMenu()
+    {
         RebuildMenu();
+        NativeMethods.SetForegroundWindow(_menuOwnerWindow.Handle);
         _menu.Show(Cursor.Position);
+        NativeMethods.PostMessage(_menuOwnerWindow.Handle, NativeMethods.WmNull, IntPtr.Zero, IntPtr.Zero);
     }
 
     private void RebuildMenu()
@@ -374,5 +383,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _statusToast = null;
         }
+    }
+
+    private static partial class NativeMethods
+    {
+        public const int WmNull = 0x0000;
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
     }
 }

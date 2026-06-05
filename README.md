@@ -3,6 +3,8 @@
 PowerPlanPilot is a lightweight Windows tray application for quick power-plan
 switching and simple automatic scale-down rules.
 
+Current app version: `0.2.4`.
+
 ## Current status
 
 - Runs as a Windows notification-area app with a compact, refreshed tray menu.
@@ -56,8 +58,37 @@ dotnet build
 Create a regular Windows publish output with:
 
 ```powershell
-dotnet publish .\src\PowerPlanPilot\PowerPlanPilot.csproj -c Release -r win-x64 --self-contained true
+dotnet publish .\src\PowerPlanPilot\PowerPlanPilot.csproj -c Release -r win-x64 --self-contained true -o .\artifacts\PowerPlanPilot-win-x64
 ```
+
+## Portable install and updates
+
+Use a stable portable install folder without a version number:
+
+```text
+%USERPROFILE%\OneDrive\Anwendungen\PortableApps\PowerPlanPilot
+```
+
+Keeping the folder name stable matters because Windows autostart stores the full
+path to `PowerPlanPilot.exe` in the current user's Run registry key. Version
+numbers belong in the project file and changelog, not in the install folder.
+
+Update checklist:
+
+1. Build and publish the current code:
+
+   ```powershell
+   dotnet publish .\src\PowerPlanPilot\PowerPlanPilot.csproj -c Release -r win-x64 --self-contained true -o .\artifacts\PowerPlanPilot-win-x64
+   ```
+
+2. Exit PowerPlanPilot from the tray menu, or stop the running `PowerPlanPilot`
+   process.
+3. Copy everything from `.\artifacts\PowerPlanPilot-win-x64\` into the stable
+   portable folder.
+4. Start `%USERPROFILE%\OneDrive\Anwendungen\PortableApps\PowerPlanPilot\PowerPlanPilot.exe`.
+5. If autostart is enabled, confirm the tray menu still shows **Start with
+   Windows** checked. If not, toggle it off and on once so the registry path is
+   refreshed.
 
 For Microsoft Store distribution, package the WinForms app as MSIX with a
 Windows Application Packaging Project in Visual Studio, add Store-ready image
