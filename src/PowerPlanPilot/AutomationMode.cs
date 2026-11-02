@@ -4,4 +4,5 @@ internal enum AutomationMode
 {
     IdleTime,
     ProcessCpu,
+    SystemCpu,
 }

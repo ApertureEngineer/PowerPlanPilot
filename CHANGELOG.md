@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add system-wide CPU automation with separate scale-up and scale-down
+  thresholds, and optional idle scale-down guarded by low CPU usage.
+- Watch multiple selected process names using their combined CPU usage for
+  scale-up and scale-down automation. Existing single-process settings migrate
+  automatically.
+
 ## 0.2.4 - 2026-06-06
 
 - Give the About window header and summary cards more room under Windows DPI scaling.

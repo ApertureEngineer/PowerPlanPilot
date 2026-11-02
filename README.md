@@ -28,7 +28,7 @@ PowerPlanPilot does **not** start from scratch after every compile or restart:
 - PowerPlanPilot automation settings are saved as JSON under the current Windows
   user profile at `%APPDATA%\PowerPlanPilot\automation.json`.
 - The saved app settings include automation enabled/disabled state, selected
-  scale-down target plan GUID, switch condition, idle threshold, selected process,
+  scale-down target plan GUID, switch condition, idle threshold, selected processes,
   CPU threshold, and low-usage duration.
 - Manually added, renamed, or removed power plans are not copied into the app;
   they remain Windows power plans and are re-read from `powercfg` on menu open or
@@ -43,9 +43,22 @@ create a fresh settings file on the next saved change.
 - Choose a scale-down target power plan.
 - Switch to the target plan after Windows idle time exceeds the configured number
   of minutes.
-- Switch to the target plan when a selected running process stays below a
-  configured CPU percentage for a configured number of minutes.
-- Pick the watched process from the current process list, including long-running tools or Benchmarks.
+- Use system CPU automation to scale up after sustained high total CPU usage and
+  scale down after sustained low usage, without selecting process names. Defaults
+  are 50% for one minute to scale up and 10% for five minutes to scale down.
+  The thresholds are percentages of total system CPU capacity; select the plans
+  you want to use in the tray menu.
+- Optionally scale down sooner when Windows has reached the idle threshold, but
+  only after system CPU has stayed below the low threshold for at least one minute.
+  System CPU, process CPU, and idle-only automation are alternative modes.
+- Select multiple process names from the current process list. Saved selections
+  remain available even after those processes exit.
+- Switch up or down when the selected running processes' combined CPU usage
+  stays above or below the configured threshold for the configured duration.
+  CPU percentage is relative to the total capacity of all logical processors.
+- Sampling runs every 15 seconds. If no selected process is running, automation
+  waits; it does not switch plans on process exit. AC and battery rules take
+  priority over CPU and idle automation.
 
 ## Build
 

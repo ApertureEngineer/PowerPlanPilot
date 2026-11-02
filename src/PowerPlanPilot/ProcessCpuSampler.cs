@@ -10,21 +10,24 @@ internal sealed class ProcessCpuSampler
         _sampleSource = sampleSource ?? new SystemProcessService();
     }
 
-    public ProcessCpuUsage GetCpuUsagePercent(string processName)
+    public ProcessCpuUsage GetCpuUsagePercent(IReadOnlyList<string> processNames)
     {
-        var currentSamples = _sampleSource.GetCurrentSamples(processName);
+        var currentSamples = processNames
+            .SelectMany(_sampleSource.GetCurrentSamples)
+            .DistinctBy(sample => sample.ProcessId)
+            .ToArray();
         var now = DateTimeOffset.UtcNow;
         double cpuPercent = 0;
-        var matchedPreviousSample = false;
+        var hasBaseline = currentSamples.Length > 0;
 
         foreach (var sample in currentSamples)
         {
             if (!_previousSamples.TryGetValue(sample.ProcessId, out var previous))
             {
+                hasBaseline = false;
                 continue;
             }
 
-            matchedPreviousSample = true;
             var elapsed = now - previous.Timestamp;
             if (elapsed <= TimeSpan.Zero)
             {
@@ -51,8 +54,8 @@ internal sealed class ProcessCpuSampler
 
         return new ProcessCpuUsage(
             Math.Clamp(cpuPercent, 0, 100),
-            currentSamples.Count > 0,
-            currentSamples.Count > 0 && matchedPreviousSample);
+            currentSamples.Length > 0,
+            hasBaseline);
     }
 
     public void Reset() => _previousSamples.Clear();

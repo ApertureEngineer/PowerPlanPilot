@@ -86,7 +86,53 @@ internal sealed class AutomationMenuBuilder
 
         AddIdleItems(plans, settings);
         AddProcessItems(plans, settings);
+        AddSystemCpuItems(plans, settings);
         AddPowerSourceMenus(plans, settings);
+    }
+
+    private void AddSystemCpuItems(IReadOnlyList<PowerPlan> plans, AutomationSettings settings)
+    {
+        var menu = _createMenuItem("System CPU settings");
+        menu.DropDownItems.Add(_createCheckedMenuItem(
+            "Use system CPU",
+            settings.Mode == AutomationMode.SystemCpu,
+            (_, _) => _updateAutomationSetting(s => s.Mode = AutomationMode.SystemCpu)));
+        menu.DropDownItems.Add(new ToolStripSeparator());
+        menu.DropDownItems.Add(CreatePlanMenu(
+            $"Scale-up plan: {GetPlanName(plans, settings.ScaleUpPowerPlanId)}",
+            plans, settings.ScaleUpPowerPlanId, (s, planId) => s.ScaleUpPowerPlanId = planId));
+        menu.DropDownItems.Add(_createMenuItem(
+            $"High CPU threshold: {settings.SystemHighCpuThresholdPercent:F1}%",
+            (_, _) => _promptForDouble("High CPU threshold", "Scale up when system CPU stays above this percentage:",
+                settings.SystemHighCpuThresholdPercent, settings.SystemLowCpuThresholdPercent + 1, 100,
+                value => settings.SystemHighCpuThresholdPercent = value)));
+        menu.DropDownItems.Add(_createMenuItem(
+            $"High-usage duration: {settings.SystemHighUsageMinutes} minutes",
+            (_, _) => _promptForInteger("High-usage duration", "Scale up after this many high-usage minutes:",
+                settings.SystemHighUsageMinutes, 1, 1440, value => settings.SystemHighUsageMinutes = value)));
+        menu.DropDownItems.Add(new ToolStripSeparator());
+        menu.DropDownItems.Add(CreatePlanMenu(
+            $"Scale-down plan: {GetPlanName(plans, settings.TargetPowerPlanId)}",
+            plans, settings.TargetPowerPlanId, (s, planId) => s.TargetPowerPlanId = planId));
+        menu.DropDownItems.Add(_createMenuItem(
+            $"Low CPU threshold: {settings.SystemLowCpuThresholdPercent:F1}%",
+            (_, _) => _promptForDouble("Low CPU threshold", "Scale down when system CPU stays below this percentage:",
+                settings.SystemLowCpuThresholdPercent, 0, settings.SystemHighCpuThresholdPercent - 1,
+                value => settings.SystemLowCpuThresholdPercent = value)));
+        menu.DropDownItems.Add(_createMenuItem(
+            $"Low-usage duration: {settings.SystemLowUsageMinutes} minutes",
+            (_, _) => _promptForInteger("Low-usage duration", "Scale down after this many low-usage minutes:",
+                settings.SystemLowUsageMinutes, 1, 1440, value => settings.SystemLowUsageMinutes = value)));
+        menu.DropDownItems.Add(new ToolStripSeparator());
+        menu.DropDownItems.Add(_createCheckedMenuItem(
+            "Scale down sooner when idle",
+            settings.SystemIdleScaleDown,
+            (_, _) => _updateAutomationSetting(s => s.SystemIdleScaleDown = !s.SystemIdleScaleDown)));
+        menu.DropDownItems.Add(_createMenuItem(
+            $"Idle threshold: {settings.IdleMinutes} minutes",
+            (_, _) => _promptForInteger("Idle threshold", "Consider the PC idle after this many minutes:",
+                settings.IdleMinutes, 1, 1440, value => settings.IdleMinutes = value)));
+        _menu.Items.Add(menu);
     }
 
     private void AddIdleItems(IReadOnlyList<PowerPlan> plans, AutomationSettings settings)
@@ -185,10 +231,14 @@ internal sealed class AutomationMenuBuilder
             (_, _) => _updateAutomationSetting(s => s.Mode = AutomationMode.ProcessCpu)));
         processSettingsMenu.DropDownItems.Add(new ToolStripSeparator());
 
-        var processMenu = _createMenuItem($"Process: {settings.ProcessName ?? "not selected"}");
+        var processMenu = _createMenuItem($"Processes: {settings.ProcessNames.Count} selected");
 
-        var processNames = _processNameProvider.GetOpenProcessNames();
-        if (processNames.Count == 0)
+        var processNames = settings.ProcessNames
+            .Concat(_processNameProvider.GetOpenProcessNames())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        if (processNames.Length == 0)
         {
             processMenu.DropDownItems.Add(_createMenuItem("No processes available", enabled: false));
         }
@@ -198,8 +248,18 @@ internal sealed class AutomationMenuBuilder
             {
                 processMenu.DropDownItems.Add(_createCheckedMenuItem(
                     processName,
-                    string.Equals(settings.ProcessName, processName, StringComparison.OrdinalIgnoreCase),
-                    (_, _) => _updateAutomationSetting(s => s.ProcessName = processName)));
+                    settings.ProcessNames.Contains(processName, StringComparer.OrdinalIgnoreCase),
+                    (_, _) => _updateAutomationSetting(s =>
+                    {
+                        if (s.ProcessNames.Contains(processName, StringComparer.OrdinalIgnoreCase))
+                        {
+                            s.ProcessNames.RemoveAll(name => string.Equals(name, processName, StringComparison.OrdinalIgnoreCase));
+                        }
+                        else
+                        {
+                            s.ProcessNames.Add(processName);
+                        }
+                    })));
             }
         }
 
@@ -216,7 +276,7 @@ internal sealed class AutomationMenuBuilder
             $"Low CPU threshold: {settings.ProcessCpuThresholdPercent:F1}%",
             (_, _) => _promptForDouble(
                 "Low CPU threshold",
-                "Switch when the selected process stays under this CPU percentage:",
+                "Switch when combined CPU usage stays under this percentage:",
                 settings.ProcessCpuThresholdPercent,
                 0,
                 100,
@@ -226,7 +286,7 @@ internal sealed class AutomationMenuBuilder
             $"Low-usage duration: {settings.ProcessLowUsageMinutes} minutes",
             (_, _) => _promptForInteger(
                 "Low-usage duration",
-                "Switch after the selected process stays below the CPU threshold for this many minutes:",
+                "Switch after combined CPU usage stays low for this many minutes:",
                 settings.ProcessLowUsageMinutes,
                 1,
                 1440,
@@ -243,7 +303,7 @@ internal sealed class AutomationMenuBuilder
             $"High CPU threshold: {settings.ProcessHighCpuThresholdPercent:F1}%",
             (_, _) => _promptForDouble(
                 "High CPU threshold",
-                "Switch to the scale-up plan after the selected process stays over this CPU percentage:",
+                "Switch to the scale-up plan when combined CPU usage stays over this percentage:",
                 settings.ProcessHighCpuThresholdPercent,
                 0,
                 100,
